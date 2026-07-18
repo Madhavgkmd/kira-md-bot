@@ -228,9 +228,8 @@ async function startKira() {
 
             const jid = msg.key.remoteJid;
             const isGroup = jid.endsWith("@g.us");
-            const sender = msg.key.fromMe
-                ? sock.user.id.split(":")[0] + "@s.whatsapp.net"
-                : (msg.participant || jid);
+            const senderRaw = msg.key.fromMe ? sock.user.id : (msg.participant || jid);
+            const sender = senderRaw.split(":")[0].split("@")[0] + "@s.whatsapp.net";
             const isOwner = sender === global.ownerNumber;
             const isSudo = global.sudoUsers?.includes(sender);
             const isOwnerOrSudo = isOwner || isSudo;
@@ -422,7 +421,7 @@ const delay = Math.floor(Math.random() * 3000) + 4000;
 
 await new Promise(resolve => setTimeout(resolve, delay));
 
-await command.execute(sock, msg, args, isOwner);
+await command.execute(sock, msg, args, isOwnerOrSudo);
             }
         } catch (err) {
             console.error("========== COMMAND ERROR ==========");
