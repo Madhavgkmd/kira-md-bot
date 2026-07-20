@@ -1,8 +1,8 @@
 const axios = require("axios");
 
 module.exports = {
-    name: "imagine",
-    alias: ["txt2img", "imagine", "text2img"],
+    name: "soraimg",
+    alias: ["txt2img", "text2img"],
     category: "ai",
     description: "Text To Image Generator",
 

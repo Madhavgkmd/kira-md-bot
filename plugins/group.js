@@ -220,7 +220,7 @@ https://chat.whatsapp.com/${code}`
 },
 
 {
-    name: "gstatus",
+    name: "grpstatus",
     category: "group",
 
     async execute(sock, msg) {
