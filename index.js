@@ -127,7 +127,7 @@ async function startKira() {
 
             if (!isStarted) {
                 await sock.sendMessage(global.ownerNumber, {
-                    text: `╭━━━〔 KIRA-X-MD 〕━━━⬣\n\n✅ Connected Successfully\n\n👤 Owner : Madhav\n🤖 Bot : KIRA-X-MD\n🌐 Repo : https://github.com/Madhavgkmd/kira-md-bot\n📢 Support Group : https://chat.whatsapp.com/C3hbXjblNLiF7CoDYJ8lwY\n╰━━━━━━━━━━━━━━⬣`
+                    text: `╭━━━〔 KIRA-X-MD 〕━━━⬣\n\n✅ Connected Successfully\n\n👤 Owner : Madhav\n🤖 Bot : KIRA-X-MD\n🌐 Repo : https://github.com/Madhavgkmd/kira-md-bot\n📢 Support Group : https://chat.whatsapp.com/BRVbzKlfHv66pSeea7H1hS\n╰━━━━━━━━━━━━━━⬣`
                 });
                 isStarted = true;
             }

@@ -1,39 +1,35 @@
 module.exports = {
     name: "owner",
-    category: "owner",
-    description: "Owner tools and contact",
+    alias: ["creator", "developer", "admin"],
+    category: "general",
+    description: "Get Bot Owner Information",
+    usage: `${process.env.PREFIX || '.'}owner`,
 
-    async execute(sock, msg, args) {
+    async execute(sock, msg) {
         const jid = msg.key.remoteJid;
-        const cmd = args;
 
-        // 1. Restart command
-        if (cmd === "restart") {
-            const sender = msg.key.fromMe ? sock.user.id.split(':') + '@s.whatsapp.net' : msg.key.participant || msg.key.remoteJid;
-            const ownerNum = global.ownerNumber ? `${global.ownerNumber}@s.whatsapp.net` : null;
+        // 1. ഓണറെ കുറിച്ചുള്ള ഒരു ചെറിയ മെസ്സേജ്
+        const infoText = `👑 *KIRA X MD - OWNER INFO* 👑\n\n` +
+            `👤 *Name:* Madhav\n` +
+            `📱 *Number:* +91 91882 52308\n` +
+            `💻 *Role:* Developer & Bot Owner\n\n` +
+            `> *Feel free to contact for bot queries!*`;
 
-            if (!msg.key.fromMe && sender !== ownerNum) {
-                return await sock.sendMessage(jid, { text: "❌ *Restricted to Bot Owner!*" }, { quoted: msg });
+        await sock.sendMessage(jid, { text: infoText }, { quoted: msg });
+
+        // 2. VCard (Contact Card) അയക്കുന്നു
+        const vcard = 'BEGIN:VCARD\n'
+            + 'VERSION:3.0\n'
+            + 'FN:Madhav\n' // Name
+            + 'ORG:KIRA X MD Owner\n'
+            + 'TEL;type=CELL;type=VOICE;waid=919188252308:+91 91882 52308\n' // Number
+            + 'END:VCARD';
+
+        await sock.sendMessage(jid, {
+            contacts: {
+                displayName: 'Madhav',
+                contacts: [{ displayName: 'Madhav', vcard }]
             }
-            await sock.sendMessage(jid, { text: "🔄 *Restarting Bot...*" }, { quoted: msg });
-            process.exit();
-        } 
-        
-        // 2. VCard (Contact Card) command
-        else {
-            const vcard = 'BEGIN:VCARD\n'
-                + 'VERSION:3.0\n'
-                + 'FN:Madhav\n' // Name
-                + 'ORG:Bot Owner\n'
-                + 'TEL;type=CELL;type=VOICE;waid=919188252308:919188252308\n' // Number
-                + 'END:VCARD';
-
-            await sock.sendMessage(jid, {
-                contacts: {
-                    displayName: 'Madhav',
-                    contacts: [{ displayName: 'Madhav', vcard }]
-                }
-            }, { quoted: msg });
-        }
+        }, { quoted: msg });
     }
 };

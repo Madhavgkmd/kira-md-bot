@@ -17,7 +17,7 @@ module.exports = {
 🌐 https://kira-session-generator-api.onrender.com
 
 💬 *Support Community*
-🔗 https://chat.whatsapp.com/C3hbXjblNLiF7CoDYJ8lwY
+🔗 https://chat.whatsapp.com/BRVbzKlfHv66pSeea7H1hS
 
 ━━━━━━━━━━━━━━━━━━━━
 ✨ *KIRA X MD* | _Powered by KIRA X MD_

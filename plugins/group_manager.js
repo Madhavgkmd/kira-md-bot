@@ -1,39 +1,59 @@
 // plugins/group_manager.js – KIRA X MD (Unified Group Plugin)
 const fs = require('fs');
-const path = './group_settings.json';
+const settingsPath = './group_settings.json';
+const activityPath = './activity_db.json'; // പുതിയ ഡാറ്റാബേസ്
 
 // ─── Shared Database/Utils ───
+let activityDb = {};
+
 function loadSettings() {
     let data = { antifakeChats: [] };
-    if (fs.existsSync(path)) {
-        try { data = JSON.parse(fs.readFileSync(path)); } catch(e){}
+    if (fs.existsSync(settingsPath)) {
+        try { data = JSON.parse(fs.readFileSync(settingsPath)); } catch(e){}
     }
     global.antifakeChats = data.antifakeChats || [];
+
+    if (fs.existsSync(activityPath)) {
+        try { activityDb = JSON.parse(fs.readFileSync(activityPath)); } catch(e){}
+    }
 }
 
 function saveSettings() {
     let data = {};
-    if (fs.existsSync(path)) {
-        try { data = JSON.parse(fs.readFileSync(path)); } catch(e){}
+    if (fs.existsSync(settingsPath)) {
+        try { data = JSON.parse(fs.readFileSync(settingsPath)); } catch(e){}
     }
     data.antifakeChats = global.antifakeChats;
-    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+    fs.writeFileSync(settingsPath, JSON.stringify(data, null, 2));
+}
+
+function saveActivity() {
+    fs.writeFileSync(activityPath, JSON.stringify(activityDb, null, 2));
 }
 
 loadSettings();
 
-// ─── Common Activity Logic ───
+// ─── Common Activity Logic (FIXED) ───
 async function getActivityData(sock, jid) {
     const meta = await sock.groupMetadata(jid);
     const participants = meta.participants.map(p => p.id);
     const counts = {};
+    
+    // എല്ലാവരുടെയും കൗണ്ട് ആദ്യം 0 ആക്കുന്നു
     participants.forEach(p => counts[p] = 0);
-    const messages = Object.values(global.messageStore || {}).filter(m => m.key.remoteJid === jid);
-    messages.forEach(m => {
-        const sender = m.key.participant || m.key.remoteJid;
-        if (counts[sender] !== undefined) counts[sender]++;
-    });
-    return { participants, counts, totalMsgs: messages.length };
+    
+    let totalMsgs = 0;
+
+    // ഡാറ്റാബേസിൽ നിന്നും കൗണ്ട് എടുക്കുന്നു
+    if (activityDb[jid]) {
+        for (const [sender, count] of Object.entries(activityDb[jid])) {
+            if (counts[sender] !== undefined) {
+                counts[sender] += count;
+                totalMsgs += count;
+            }
+        }
+    }
+    return { participants, counts, totalMsgs };
 }
 
 // ─── Admin Check Helper ───
@@ -75,9 +95,12 @@ module.exports = [
 
             await sock.sendMessage(msg.key.remoteJid, { react: { text: "📊", key: msg.key } });
             const { participants, counts, totalMsgs } = await getActivityData(sock, msg.key.remoteJid);
+            
             const activeUsers = participants.filter(p => counts[p] > 0).sort((a, b) => counts[b] - counts[a]).slice(0, 15);
-            if (activeUsers.length === 0) return await sock.sendMessage(msg.key.remoteJid, { text: '⚠️ No active members.' }, { quoted: msg });
-            let txt = `🔥 *TOP ACTIVE MEMBERS*\n_Based on recent ${totalMsgs} msgs_\n\n`;
+            
+            if (activeUsers.length === 0) return await sock.sendMessage(msg.key.remoteJid, { text: '⚠️ No active members yet (Waiting for new messages).' }, { quoted: msg });
+            
+            let txt = `🔥 *TOP ACTIVE MEMBERS*\n_Based on ${totalMsgs} recent messages_\n\n`;
             activeUsers.forEach((u, i) => txt += `${i + 1}. @${u.split('@')[0]} - *${counts[u]} msgs*\n`);
             await sock.sendMessage(msg.key.remoteJid, { text: txt, mentions: activeUsers }, { quoted: msg });
         }
@@ -95,14 +118,17 @@ module.exports = [
 
             await sock.sendMessage(msg.key.remoteJid, { react: { text: "📊", key: msg.key } });
             const { participants, counts, totalMsgs } = await getActivityData(sock, msg.key.remoteJid);
+            
             const inactiveUsers = participants.filter(p => counts[p] === 0);
+            
             if (inactiveUsers.length === 0) return await sock.sendMessage(msg.key.remoteJid, { text: '✅ Everyone is active!' }, { quoted: msg });
-            let txt = `👻 *INACTIVE MEMBERS (Ghosts)*\n_Based on recent ${totalMsgs} msgs_\n\n`;
+            
+            let txt = `👻 *INACTIVE MEMBERS (Ghosts)*\n_Based on activity tracking_\n\n`;
             inactiveUsers.forEach((u, i) => txt += `${i + 1}. @${u.split('@')[0]}\n`);
             await sock.sendMessage(msg.key.remoteJid, { text: txt, mentions: inactiveUsers }, { quoted: msg });
         }
     },
-    // 3. HIDE TAG
+    // ... (മറ്റ് കമാൻഡുകൾ എല്ലാം പഴയത് പോലെ തന്നെ താഴെ കൊടുക്കുക - hidetag, poll, invite etc.)
     {
         name: 'hidetag',
         alias: ['ht'],
@@ -123,7 +149,6 @@ module.exports = [
             await sock.sendMessage(msg.key.remoteJid, { text: text, mentions: participants });
         }
     },
-    // 4. POLL
     {
         name: 'poll',
         category: 'group',
@@ -136,7 +161,6 @@ module.exports = [
             await sock.sendMessage(msg.key.remoteJid, { poll: { name: input[0], values: input.slice(1), selectableCount: 1 } });
         }
     },
-    // 5. INVITE
     {
         name: 'invite',
         alias: ['link'],
@@ -155,7 +179,6 @@ module.exports = [
             }
         }
     },
-    // 6. ADMINLIST
     {
         name: 'adminlist',
         alias: ['admins'],
@@ -170,7 +193,6 @@ module.exports = [
             await sock.sendMessage(msg.key.remoteJid, { text: txt, mentions: admins.map(a => a.id) }, { quoted: msg });
         }
     },
-    // 7. ANTIFAKE
     {
         name: 'antifake',
         category: 'group',
@@ -192,7 +214,6 @@ module.exports = [
             await sock.sendMessage(msg.key.remoteJid, { text: `🛡️ Anti-Fake is now *${global.antifakeChats.includes(msg.key.remoteJid) ? 'ON' : 'OFF'}*` }, { quoted: msg });
         }
     },
-    // 8. GROUP INFO
     {
         name: 'ginfo',
         alias: ['groupinfo', 'infogroup'],
@@ -217,7 +238,6 @@ module.exports = [
             await sock.sendMessage(jid, { text: txt, mentions: [meta.owner] }, { quoted: msg });
         }
     },
-    // 9. REVOKE LINK
     {
         name: 'revoke',
         alias: ['resetlink'],
@@ -235,7 +255,6 @@ module.exports = [
             }
         }
     },
-    // 10. TAG ADMINS
     {
         name: 'tagadmins',
         alias: ['adminsonly'],
@@ -251,7 +270,6 @@ module.exports = [
             await sock.sendMessage(jid, { text: `🛡️ *ADMIN PING* 🛡️\n\n📢 ${text}`, mentions: admins }, { quoted: msg });
         }
     },
-    // 11. KICK ALL (DANGEROUS)
     {
         name: 'kickall',
         category: 'group',
@@ -277,7 +295,6 @@ module.exports = [
             }
         }
     },
-    // 12. DEMOTE ALL ADMINS
     {
         name: 'demoteall',
         category: 'group',
@@ -301,7 +318,6 @@ module.exports = [
             }
         }
     },
-    // 13. BOT LEAVE
     {
         name: 'leave',
         alias: ['left'],
@@ -320,8 +336,32 @@ module.exports = [
     }
 ];
 
-// ─── Event Listener for Antifake ───
+// ─── Event Listener for Antifake & Message Tracking ───
 module.exports.initGroupEvents = async function(sock) {
+    
+    // 1. Message Tracker (ഇതാണ് പുതിയത്!)
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+        try {
+            const m = messages[0];
+            if (!m.message || m.key.fromMe) return;
+            const jid = m.key.remoteJid;
+            if (!jid.endsWith('@g.us')) return; // ഗ്രൂപ്പുകളിൽ മാത്രം
+
+            const sender = m.key.participant;
+            if (!sender) return;
+
+            // ഡാറ്റാബേസിൽ കൗണ്ട് കൂട്ടുന്നു
+            if (!activityDb[jid]) activityDb[jid] = {};
+            if (!activityDb[jid][sender]) activityDb[jid][sender] = 0;
+            
+            activityDb[jid][sender]++;
+            saveActivity();
+        } catch (e) {
+            console.log("Activity tracker error:", e);
+        }
+    });
+
+    // 2. Antifake System
     sock.ev.on('group-participants.update', async (update) => {
         try {
             loadSettings();

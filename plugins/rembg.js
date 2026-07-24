@@ -14,23 +14,24 @@ module.exports = {
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
+        
+        // റീപ്ലേ ചെയ്ത മെസ്സേജ് ഇമേജ് ആണോ എന്ന് നോക്കുന്നു
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
         if (!quoted || !quoted.imageMessage) {
-            await sock.sendMessage(jid, { text: '❌ *Reply to an image*' }, { quoted: msg });
-            return;
+            return sock.sendMessage(jid, { text: '❌ *Please reply to an image!*' }, { quoted: msg });
         }
 
+        // ⏳ ലോഡിങ് റിയാക്ഷൻ മാത്രം കൊടുക്കുന്നു
         await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
-        const statusMsg = await sock.sendMessage(jid, { text: '🔄 *Processing image...*' });
 
         let tempFile = null;
         try {
-            // 1. Download the image
+            // 1. വാട്സ്ആപ്പിൽ നിന്നും ഫോട്ടോ ഡൗൺലോഡ് ചെയ്യുന്നു
             const buffer = await downloadMediaMessage({ message: quoted }, 'buffer', {}, { logger: console });
             if (!buffer) throw new Error('Failed to download image');
 
-            // 2. Upload to catbox.moe to get a public URL
+            // 2. Catbox.moe ലേക്ക് അപ്‌ലോഡ് ചെയ്ത് പബ്ലിക് ലിങ്ക് ഉണ്ടാക്കുന്നു
             const tempDir = path.join(__dirname, '../temp');
             if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
             tempFile = path.join(tempDir, `rembg_${Date.now()}.jpg`);
@@ -45,23 +46,43 @@ module.exports = {
                 timeout: 20000
             });
             const imageUrl = uploadRes.data.trim();
-            if (!imageUrl.startsWith('http')) throw new Error('Upload failed');
+            if (!imageUrl.startsWith('http')) throw new Error('Upload to catbox failed');
 
-            // 3. Call the rembg API
-            const apiUrl = `https://jerrycoder.oggyapi.workers.dev/tool/rembg?url=${encodeURIComponent(imageUrl)}`;
+            // 3. പുതിയ Movanest API-ലേക്ക് ആ ലിങ്ക് കൊടുക്കുന്നു
+            const apiUrl = `https://www.movanest.xyz/v2/removebg?image_url=${encodeURIComponent(imageUrl)}`;
+            
             const response = await axios.get(apiUrl, { responseType: 'arraybuffer', timeout: 30000 });
-            const resultBuffer = Buffer.from(response.data);
+            let resultBuffer = response.data;
 
-            // 4. Send the result as image
-            await sock.sendMessage(jid, { image: resultBuffer, caption: '✨ *Background removed*\n\n> *KIRA X MD*' });
+            // API ചിലപ്പോൾ JSON തന്നാൽ അത് കൈകാര്യം ചെയ്യാൻ (Smart Parsing)
+            const contentType = response.headers['content-type'] || '';
+            if (contentType.includes('application/json')) {
+                const json = JSON.parse(resultBuffer.toString('utf8'));
+                const finalUrl = json.data?.url || json.url || json.result || json.image;
+                if (finalUrl) {
+                    const imgRes = await axios.get(finalUrl, { responseType: 'arraybuffer' });
+                    resultBuffer = imgRes.data;
+                } else {
+                    throw new Error("No image found in API response");
+                }
+            }
 
+            // 4. റിസൾട്ട് വാട്സ്ആപ്പിലേക്ക് അയക്കുന്നു (PNG ഫോർമാറ്റ് സുതാര്യത നിലനിർത്താൻ സഹായിക്കും)
+            await sock.sendMessage(jid, { 
+                image: resultBuffer, 
+                mimetype: 'image/png',
+                caption: '✨ *Background Removed*\n\n> *KIRA X MD*' 
+            }, { quoted: msg });
+
+            // ✅ സക്സസ് റിയാക്ഷൻ
             await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
-            await sock.sendMessage(jid, { text: '✅ *Done*', edit: statusMsg.key });
+
         } catch (err) {
-            console.error('Rembg error:', err);
-            await sock.sendMessage(jid, { text: '❌ *Failed to remove background*', edit: statusMsg.key });
+            console.error('Rembg error:', err.message);
+            // ❌ ഫെയിൽ ആയാൽ എറർ റിയാക്ഷൻ
             await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
         } finally {
+            // ടെമ്പ് ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു (Storage ഫുൾ ആവാതിരിക്കാൻ)
             if (tempFile && fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
         }
     }
