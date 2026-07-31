@@ -1,13 +1,13 @@
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
-const FormData = require("form-data");
-const axios = require("axios"); // Railway-ൽ timeout കൊടുക്കാൻ axios ഉപയോഗിക്കുന്നു
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fs = require("fs");
+const path = require("path");
+const { Shazam } = require("node-shazam");
 
 module.exports = {
     name: "find",
-    alias: ["identify", "whatsong"],
+    alias: ["identify", "whatsong", "shazam"],
     category: "media",
-    description: "Identify song from replied audio/video",
+    description: "Identify song from replied audio/video using Shazam",
 
     async execute(sock, msg) {
         const jid = msg.key.remoteJid;
@@ -22,73 +22,53 @@ module.exports = {
         try {
             await sock.sendMessage(jid, { react: { text: "🎧", key: msg.key } });
 
-            // 1. മീഡിയ ഡൗൺലോഡ് ചെയ്യുന്നു
+            // 1. വാട്സ്ആപ്പിൽ നിന്നും മീഡിയ ഡൗൺലോഡ് ചെയ്യുന്നു
             const mediaBuffer = await downloadMediaMessage({ message: quoted }, "buffer", {}, {});
-            if (!mediaBuffer) throw new Error("Failed to download media buffer from WhatsApp.");
-            console.log(
-    "BUFFER SIZE:",
-    (mediaBuffer.length / 1024 / 1024).toFixed(2),
-    "MB"
-);
-
-            // 2. Catbox-ലേക്ക് അപ്‌ലോഡ് ചെയ്യുന്നു
-            const form = new FormData();
-            form.append("reqtype", "fileupload");
-            form.append("fileToUpload", mediaBuffer, { filename: "song.mp3" });
-
-            const uploadRes = await fetch("https://catbox.moe/user/api.php", {
-                method: 'POST',
-                body: form
-            });
-
-            const mediaUrl = await uploadRes.text();
-
-console.log("CATBOX RESPONSE:", mediaUrl);
-
-if (!mediaUrl.startsWith("http"))
-    throw new Error(`Audio upload failed: ${mediaUrl}`);
-            // 3. API വഴി പാട്ട് കണ്ടുപിടിക്കുന്നു (നേരിട്ട് നൽകിയ ലിങ്ക്)
-            const apiUrl = `https://jerrycoder.oggyapi.workers.dev/tool/identify?url=${encodeURIComponent(mediaUrl)}`;
+            if (!mediaBuffer) throw new Error("Failed to download media buffer");
             
-            // Railway-ൽ ഹാങ് ആവാതിരിക്കാൻ 15 സെക്കൻഡ് Timeout ആഡ് ചെയ്തു
-            const identifyRes = await axios.get(apiUrl, { timeout: 15000 });
-            
-            if (identifyRes.data.status !== "success") throw new Error("API could not identify the song.");
+            // 2. പാക്കേജിന് പ്രോസസ്സ് ചെയ്യാൻ വേണ്ടി താൽക്കാലികമായി ഒരു ഫയൽ ഉണ്ടാക്കുന്നു
+            const tmpPath = path.join(__dirname, `temp_audio_${Date.now()}.mp3`);
+            fs.writeFileSync(tmpPath, mediaBuffer);
 
-            const resData = identifyRes.data.result;
-            const title = resData.title;
-            const artist = resData.artist;
-            const album = resData.Album; 
-            const releaseDate = resData["Released on"]; 
-            const genre = resData.Genres; 
-            const label = resData.Label; 
-            const image = resData.image;
-            const shazamUrl = resData.shazam_url;
+            // 3. Shazam NPM വെച്ച് പാട്ട് കണ്ടുപിടിക്കുന്നു
+            const shazam = new Shazam();
+            const res = await shazam.recognise(tmpPath);
+            
+            // 4. താൽക്കാലിക ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു (സ്റ്റോറേജ് നിറയാതിരിക്കാൻ)
+            fs.unlinkSync(tmpPath);
+
+            if (!res || !res.track) {
+                throw new Error("Song not recognized by Shazam");
+            }
+
+            // 5. റിസൾട്ട് എടുക്കുന്നു
+            const track = res.track;
+            const title = track.title;
+            const artist = track.subtitle;
+            const image = track.images?.coverart || "https://telegra.ph/file/0c32688031d27944062a7.jpg";
+            const genre = track.genres?.primary;
+            const shazamUrl = track.share?.href;
             
             let caption = `╭──『 🎵 *SONG IDENTIFIED* 』──⊷\n│\n`;
             caption += `│ 📀 *Title :* ${title || "Unknown"}\n`;
             caption += `│ 🎤 *Artist :* ${artist || "Unknown"}\n`;
             
-            if (album && album !== "Unknown Album") caption += `│ 💿 *Album :* ${album}\n`;
-            if (releaseDate && releaseDate !== "Unknown") caption += `│ 📅 *Released :* ${releaseDate}\n`;
-            if (genre && genre !== "NotFound" && genre !== "Unknown") caption += `│ 🎼 *Genre :* ${genre}\n`;
-            if (label && label !== "Unknown") caption += `│ 🏢 *Label :* ${label}\n`;
-            
+            if (genre) caption += `│ 🎼 *Genre :* ${genre}\n`;
             caption += `│\n╰──────────────⊷\n\n`;
             if (shazamUrl) caption += `🔗 *Listen on Shazam:*\n${shazamUrl}`;
 
             // റിസൾട്ട് അയക്കുന്നു
             await sock.sendMessage(jid, { 
-                image: { url: image || "https://telegra.ph/file/0c32688031d27944062a7.jpg" }, 
+                image: { url: image }, 
                 caption 
             }, { quoted: msg });
             
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
         } catch (err) {
-            console.error("Find Command Error:", err.message); 
+            console.error("Shazam Error:", err.message); 
             await sock.sendMessage(jid, { 
-                text: `╭──『 ❌ *ERROR* 』──⊷\n│ Failed to identify. Server may be busy or song not recognized.\n╰──────────────⊷` 
+                text: `╭──『 ❌ *ERROR* 』──⊷\n│ Failed to identify. Song not recognized or unsupported format.\n╰──────────────⊷` 
             }, { quoted: msg });
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
         }

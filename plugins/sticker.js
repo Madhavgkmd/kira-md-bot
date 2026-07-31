@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const webp = require("node-webpmux");
 
+// FFmpeg പാത്ത് സെറ്റ് ചെയ്യാൻ
 const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
 if (fs.existsSync(ffmpegPath)) {
     ffmpeg.setFfmpegPath(ffmpegPath);
@@ -44,7 +45,6 @@ module.exports = {
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-        const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
 
         if (!quoted) {
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
@@ -105,21 +105,22 @@ module.exports = {
                     .webp({ quality: 90 })
                     .toFile(outputPath);
             } else {
-                // ─── Video → Animated Sticker (Full Size, High Quality) ───
+                // ─── Video → Animated Sticker ───
                 inputPath = path.join(tempDir, `in_${Date.now()}.mp4`);
                 outputPath = path.join(tempDir, `out_${Date.now()}.webp`);
                 fs.writeFileSync(inputPath, buffer);
 
                 await new Promise((resolve, reject) => {
                     ffmpeg(inputPath)
+                        .inputOptions(["-t", "10"]) // 10 സെക്കൻഡിൽ കൂടുതലുള്ള വീഡിയോ കട്ട് ചെയ്യും (സ്റ്റിക്കർ സൈസ് കൂടില്ല)
                         .outputOptions([
                             "-vcodec", "libwebp",
-                            "-vf", "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0.0,fps=15",
+                            "-vf", "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0", // Background color white(transparent)
                             "-loop", "0",
                             "-preset", "default",
-                            "-quality", "90",
+                            "-an",          // no audio
                             "-vsync", "0",
-                            "-an"  // no audio
+                            "-q:v", "50"    // -quality 90 എന്നത് മാറ്റി -q:v ആക്കി (FFmpeg error ഒഴിവാക്കാൻ)
                         ])
                         .toFormat("webp")
                         .on("end", resolve)
