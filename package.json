@@ -12,6 +12,7 @@
     "@consumet/extensions": "^1.8.8",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "axios": "^1.18.1",
+    "pdfkit": "^0.15.0",
     "cheerio": "^1.2.0",
     "dotenv": "^16.4.7",
     "fluent-ffmpeg": "^2.1.3",

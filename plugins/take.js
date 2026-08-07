@@ -31,16 +31,15 @@ module.exports = {
     name: "take",
     alias: ["wm", "steal"],
     category: "sticker",
-    desc: "Change the watermark of a quoted sticker to your typed name",
+    description: "Change the watermark of a quoted sticker to your typed name",
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-        const quotedInfo = msg.message?.extendedTextMessage?.contextInfo;
 
         // Verify they are replying to something
-        if (!quoted || !quotedInfo) {
-            return sock.sendMessage(jid, { text: "❌ Reply to the sticker you want to take!" }, { quoted: msg });
+        if (!quoted) {
+            return await sock.sendMessage(jid, { text: "❌ *Reply to the sticker you want to take!*" }, { quoted: msg });
         }
 
         let mediaMsg = quoted;
@@ -49,7 +48,7 @@ module.exports = {
 
         // Verify it is actually a sticker
         if (!mediaMsg.stickerMessage) {
-            return sock.sendMessage(jid, { text: "❌ That's not a sticker. Reply to a sticker only." }, { quoted: msg });
+            return await sock.sendMessage(jid, { text: "❌ *That's not a sticker. Reply to a sticker only.*" }, { quoted: msg });
         }
 
         // Default fallbacks
@@ -61,13 +60,10 @@ module.exports = {
             const fullText = args.join(" ");
             
             if (fullText.includes("|")) {
-                // If they use the separator: .take My Pack | My Author
                 const textArgs = fullText.split("|");
                 packName = textArgs[0].trim();
-                authorName = textArgs[1].trim();
+                authorName = textArgs[1] ? textArgs[1].trim() : "Kira";
             } else {
-                // If they just type a name: .take John Doe
-                // It will make the pack name whatever they typed!
                 packName = fullText.trim();
                 authorName = "Kira"; 
             }
@@ -78,13 +74,15 @@ module.exports = {
 
         let inputPath;
         try {
-            // Download the existing sticker
+            // ⚠️ Error ഉണ്ടാക്കിയിരുന്ന reuploadRequest ഒഴിവാക്കി കൃത്യമായ ഫോർമാറ്റ് കൊടുത്തു
             const buffer = await downloadMediaMessage(
                 { message: mediaMsg },
                 "buffer",
                 {},
-                { logger: console, reuploadRequest: sock.updateMediaMessage }
+                {} 
             );
+
+            if (!buffer) throw new Error("Buffer download failed!");
 
             const tempDir = path.join(__dirname, "../temp");
             if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
@@ -97,17 +95,20 @@ module.exports = {
 
             // Read and send it back
             const sticker = fs.readFileSync(inputPath);
-            await sock.sendMessage(jid, { sticker });
-            await sock.sendMessage(jid, { text: "✅ Sticker updated!", edit: statusMsg.key });
+            await sock.sendMessage(jid, { sticker }, { quoted: msg });
+            
+            // Delete the status message and react success
+            await sock.sendMessage(jid, { delete: statusMsg.key });
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
             // Cleanup temp file
-            fs.unlinkSync(inputPath);
-        } catch (err) {
-            console.error("Take command error:", err);
-            await sock.sendMessage(jid, { text: "❌ Failed to change sticker metadata", edit: statusMsg.key });
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
             if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+            
+        } catch (err) {
+            console.error("Take command error:", err.message);
+            await sock.sendMessage(jid, { text: "❌ *Failed to take sticker. Ensure you are replying to a recently sent sticker!*", edit: statusMsg.key });
+            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+            if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
         }
     }
 };

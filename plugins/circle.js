@@ -4,9 +4,8 @@ const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs");
 const path = require("path");
 
-const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
-if (fs.existsSync(ffmpegPath)) ffmpeg.setFfmpegPath(ffmpegPath);
-const tempDir = path.join(__dirname, '../../temp');
+// പാത്ത് പ്രശ്നം പരിഹരിച്ചു (ബോട്ടിന്റെ റൂട്ട് ഫോൾഡറിൽ temp ഉണ്ടാക്കും)
+const tempDir = path.join(process.cwd(), 'temp');
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
 module.exports = {
@@ -20,9 +19,11 @@ module.exports = {
         const jid = msg.key.remoteJid;
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         if (!quoted || (!quoted.imageMessage && !quoted.videoMessage))
-            return sock.sendMessage(jid, { text: "❌ Reply to an image or video" }, { quoted: msg });
+            return sock.sendMessage(jid, { text: "❌ *Reply to an image or video!*" }, { quoted: msg });
+            
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
-        const statusMsg = await sock.sendMessage(jid, { text: "⚪ Creating circular sticker..." });
+        const statusMsg = await sock.sendMessage(jid, { text: "⚪ *Creating circular sticker...*" });
+        
         let inputPath, outputPath;
         try {
             const buffer = await downloadMediaMessage({ message: quoted }, "buffer", {}, { logger: console });
@@ -32,7 +33,6 @@ module.exports = {
             fs.writeFileSync(inputPath, buffer);
 
             if (isVideo) {
-                // Extract first frame as image
                 const framePath = path.join(tempDir, `circle_frame_${Date.now()}.jpg`);
                 await new Promise((resolve, reject) => {
                     ffmpeg(inputPath)
@@ -43,7 +43,6 @@ module.exports = {
                         .on("error", reject)
                         .run();
                 });
-                // Circular crop on that frame
                 await sharp(framePath)
                     .resize(512, 512, { fit: "cover" })
                     .composite([{ input: Buffer.from(`<svg><circle cx="256" cy="256" r="256" fill="white"/></svg>`), blend: "dest-in" }])
@@ -51,7 +50,6 @@ module.exports = {
                     .toFile(outputPath);
                 fs.unlinkSync(framePath);
             } else {
-                // Image: circular crop
                 await sharp(inputPath)
                     .resize(512, 512, { fit: "cover" })
                     .composite([{ input: Buffer.from(`<svg><circle cx="256" cy="256" r="256" fill="white"/></svg>`), blend: "dest-in" }])
@@ -60,11 +58,16 @@ module.exports = {
             }
             const stickerBuffer = fs.readFileSync(outputPath);
             await sock.sendMessage(jid, { sticker: stickerBuffer });
-            await sock.sendMessage(jid, { text: "✅ Circular sticker ready", edit: statusMsg.key });
+            await sock.sendMessage(jid, { text: "✅ *Circular sticker ready!*", edit: statusMsg.key });
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
         } catch (err) {
             console.error(err);
-            await sock.sendMessage(jid, { text: "❌ Failed", edit: statusMsg.key });
-        } finally { try { if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath); if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch(e) {} }
+            await sock.sendMessage(jid, { text: "❌ *Failed to create sticker!*", edit: statusMsg.key });
+        } finally { 
+            try { 
+                if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath); 
+                if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath); 
+            } catch(e) {} 
+        }
     }
 };

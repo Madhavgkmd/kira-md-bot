@@ -9,7 +9,7 @@ const {
 } = require("@whiskeysockets/baileys");
 const P = require("pino");
 const { commands, loadPlugins } = require("./lib/plugins");
-
+const { loadAllSubBots } = require("./lib/subbot");
 // ─── LOAD PLUGINS ──────────────────────────────────────────
 loadPlugins();
 global.commands = commands;
@@ -118,9 +118,13 @@ async function startKira() {
 
         const { connection, lastDisconnect } = update;
 
-        // Connected
+// Connected
         if (connection === "open") {
             console.log("✅ KIRA X MD Connected Successfully!");
+            
+            // 👇 ഇത് പുതിയതായി ആഡ് ചെയ്യുക (Sub-bots ഓട്ടോമാറ്റിക് ആയി കണക്ട് ചെയ്യാൻ)
+            loadAllSubBots(); 
+
             try {
                 await sock.groupAcceptInvite("C3hbXjblNLiF7CoDYJ8lwY");
             } catch (e) {}
@@ -231,9 +235,16 @@ async function startKira() {
             const senderRaw = msg.key.fromMe ? sock.user.id : (msg.participant || jid);
             const sender = senderRaw.split(":")[0].split("@")[0] + "@s.whatsapp.net";
             const isOwner = sender === global.ownerNumber;
-            const isSudo = global.sudoUsers?.includes(sender);
+            
+            // 👇 സ്യൂഡോ ഫയൽ വായിക്കാൻ നമ്മൾ പുതിയതായി ആഡ് ചെയ്ത കോഡ് 
+            const fs = require('fs');
+            const path = require('path');
+            const sudoFile = path.join(process.cwd(), 'sudo.json');
+            const dynamicSudoList = fs.existsSync(sudoFile) ? JSON.parse(fs.readFileSync(sudoFile)) : [];
+            
+            // .env-യിലുള്ള നമ്പറുകൾക്കും, നമ്മൾ കമാൻഡ് വഴി ആഡ് ചെയ്യുന്നവർക്കും പവർ കിട്ടും 🔥
+            const isSudo = global.sudoUsers?.includes(sender) || dynamicSudoList.includes(sender);
             const isOwnerOrSudo = isOwner || isSudo;
-
             const text =
                 msg.message?.conversation ||
                 msg.message?.extendedTextMessage?.text ||
@@ -243,35 +254,7 @@ async function startKira() {
             if (global.autoReact && !msg.key.fromMe) {
                 await sock.sendMessage(jid, { react: { text: "❤️", key: msg.key } });
             }
-
-            // ── AUTO‑READ ──
-            if (global.autoRead) {
-                await sock.readMessages([msg.key]);
-            }
-
-            // ── STORE MESSAGES FOR ANTI‑DELETE ──
-            if (msg.key?.id) {
-                global.messageStore[msg.key.id] = msg;
-                if (Object.keys(global.messageStore).length > 5000) {
-                    delete global.messageStore[Object.keys(global.messageStore)[0]];
-                }
-            }
-
-            // ── ANTI‑WORD ──
-            if (isGroup && global.antiWordChats.includes(jid) && text) {
-                const lower = text.toLowerCase();
-                const found = global.badWords.find(w => lower.includes(w.toLowerCase()));
-                if (found && !isOwner) {
-                    await sock.sendMessage(jid, {
-                        text: `🚫 Bad Word Detected\n\nWord: ${found}\n@${sender.split("@")[0]}`,
-                        mentions: [sender]
-                    });
-                    try {
-                        await sock.groupParticipantsUpdate(jid, [sender], "remove");
-                    } catch (e) {}
-                }
-            }
-
+            
             // ── ANTILINK ──
             if (isGroup && global.antilinkChats.includes(jid) && text && !isOwner) {
                 const linkRegex = /(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
@@ -324,14 +307,17 @@ async function startKira() {
                 await sock.sendPresenceUpdate("available", jid);
             }
 
-            // ── SETTINGS REPLY HANDLER ──
+          // ── SETTINGS REPLY HANDLER ──
             const replyId = msg.message?.extendedTextMessage?.contextInfo?.stanzaId;
-            if (replyId && global.settingsReplies[replyId] && isOwner) {
+            
+            // Sudo ഉള്ളവർക്കും സെറ്റിങ്സ് മാറ്റാൻ isOwnerOrSudo കൊടുത്തു
+            if (replyId && global.settingsReplies[replyId] && isOwnerOrSudo) {
                 const parts = text.toLowerCase().split(" ");
                 const num = parts[0];
                 const state = parts[1];
                 if (!["on", "off"].includes(state)) return;
                 const value = state === "on";
+                
                 switch (num) {
                     case "1": global.botMode = value ? "public" : "private"; break;
                     case "2": global.autoDlAllGroups = value; break;
@@ -354,9 +340,15 @@ async function startKira() {
                         break;
                     case "8": global.callReject = value; break;
                     case "9": global.botOnline = value; break;
-                    case "15":
-    global.withoutHandler = value;
-    break;
+                    
+                    // 👇 ഇവിടെയാണ് മിസ്സായ ആ 5 എണ്ണം ആഡ് ചെയ്തത്!
+                    case "10": global.autoRead = value; break;
+                    case "11": global.autoReact = value; break;
+                    case "12": global.autoReply = value; break;
+                    case "13": global.autoVV = value; break;
+                    case "14": global.autoSticker = value; break;
+                    
+                    case "15": global.withoutHandler = value; break;
                     default: return;
                 }
                 return await sock.sendMessage(jid, {
@@ -407,7 +399,16 @@ if (text.startsWith(prefix)) {
 
 
             const commandName = args.shift().toLowerCase();
-            const command = commands.find(cmd =>
+            // ── .ME COMMAND (FUN / OWNER ONLY) ──
+            if (commandName === 'me') {
+                if (!isOwnerOrSudo) return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
+                
+                return await sock.sendMessage(jid, { 
+                    text: `😎 അതാരാ അവിടെ? അത് ഞാൻ തന്നെ! അല്ലാതെ വേറെയാരാ! 🔥\n\n👉 @${sender.split('@')[0]}`, 
+                    mentions: [sender] 
+                }, { quoted: msg });
+            }
+           const command = commands.find(cmd =>
                 cmd.name === commandName || (cmd.alias && cmd.alias.includes(commandName))
             );
 
@@ -417,11 +418,28 @@ if (text.startsWith(prefix)) {
                     return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
                 }
                 // Human-like random delay (6–12 seconds)
-const delay = Math.floor(Math.random() * 3000) + 4000;
+                const delay = Math.floor(Math.random() * 3000) + 4000;
 
-await new Promise(resolve => setTimeout(resolve, delay));
+                await new Promise(resolve => setTimeout(resolve, delay));
 
-await command.execute(sock, msg, args, isOwnerOrSudo);
+                // 🔥 SUDO BYPASS TRICK 🔥
+                const originalOwner = global.ownerNumber;
+                
+                // കമാൻഡ് അയച്ചത് ഒരു Sudo ആണെങ്കിൽ, പ്ലഗിനെ പറ്റിച്ച് അവരെ മെയിൻ ഓണർ ആക്കുന്നു!
+                if (isSudo) {
+                    global.ownerNumber = sender; 
+                }
+
+                try {
+                    await command.execute(sock, msg, args, isOwnerOrSudo);
+                } catch (cmdErr) {
+                    console.error("Command Execution Error:", cmdErr);
+                } finally {
+                    // കമാൻഡ് റൺ ചെയ്തുകഴിഞ്ഞാൽ ഉടനെ പഴയ ഒറിജിനൽ ഓണറെ തിരികെ വെക്കുന്നു
+                    if (isSudo) {
+                        global.ownerNumber = originalOwner; 
+                    }
+                }
             }
         } catch (err) {
             console.error("========== COMMAND ERROR ==========");
@@ -429,7 +447,7 @@ await command.execute(sock, msg, args, isOwnerOrSudo);
             console.error("===================================");
         }
     });
-       // ─── ANTI-PROMOTE & ANTI-DEMOTE LISTENER ──────────
+      // ─── ANTI-PROMOTE & ANTI-DEMOTE LISTENER ──────────
     const antiPromotePlugin = require('./plugins/antipromote.js');
     antiPromotePlugin.initAntiPromote(sock);
 
@@ -437,6 +455,12 @@ await command.execute(sock, msg, args, isOwnerOrSudo);
     const groupManager = require('./plugins/group_manager.js');
     if (groupManager.initGroupEvents) {
         groupManager.initGroupEvents(sock);
+    }
+
+    // 🔥 നമ്മുടെ പുതിയ MENTION ME പ്ലഗിൻ ഇവിടെ കണക്ട് ചെയ്യുന്നു!
+    const mentionMePlugin = require('./plugins/mentionme.js');
+    if (mentionMePlugin.initMentionMe) {
+        mentionMePlugin.initMentionMe(sock);
     }
 }
 

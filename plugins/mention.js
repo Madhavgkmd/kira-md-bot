@@ -19,11 +19,24 @@ module.exports = [
             const meta = await sock.groupMetadata(jid);
             const members = meta.participants.map(x => x.id);
 
+            // 🔥 റിപ്ലൈ ചെയ്ത മെസ്സേജ് കണ്ടുപിടിക്കാനുള്ള 'Pro' ലോജിക്
+            let quoteTarget = msg;
+            if (msg.message?.extendedTextMessage?.contextInfo?.stanzaId) {
+                quoteTarget = {
+                    key: {
+                        remoteJid: jid,
+                        id: msg.message.extendedTextMessage.contextInfo.stanzaId,
+                        participant: msg.message.extendedTextMessage.contextInfo.participant
+                    },
+                    message: msg.message.extendedTextMessage.contextInfo.quotedMessage
+                };
+            }
+
             // ലിസ്റ്റ് ഇല്ലാതെ മെസ്സേജ് മാത്രം അയക്കുന്നു, പക്ഷെ എല്ലാവർക്കും ടാഗ് പോകും
             await sock.sendMessage(jid, {
                 text: text,
                 mentions: members 
-            }, { quoted: msg });
+            }, { quoted: quoteTarget }); // 🔥 ഇവിടെ quoteTarget ആക്കി മാറ്റി
         }
     },
 
@@ -47,6 +60,19 @@ module.exports = [
             const meta = await sock.groupMetadata(jid);
             const members = meta.participants.map(x => x.id);
 
+            // 🔥 റിപ്ലൈ ചെയ്ത മെസ്സേജ് കണ്ടുപിടിക്കാനുള്ള 'Pro' ലോജിക്
+            let quoteTarget = msg;
+            if (msg.message?.extendedTextMessage?.contextInfo?.stanzaId) {
+                quoteTarget = {
+                    key: {
+                        remoteJid: jid,
+                        id: msg.message.extendedTextMessage.contextInfo.stanzaId,
+                        participant: msg.message.extendedTextMessage.contextInfo.participant
+                    },
+                    message: msg.message.extendedTextMessage.contextInfo.quotedMessage
+                };
+            }
+
             // മെസ്സേജ് മുകളിലും, താഴെ എല്ലാവരുടെയും നമ്പറും വരുന്ന ഡിസൈൻ
             let text = `*${customText}*\n\n*👥 Group Members:*\n\n`;
 
@@ -57,7 +83,7 @@ module.exports = [
             await sock.sendMessage(jid, {
                 text: text,
                 mentions: members 
-            }, { quoted: msg });
+            }, { quoted: quoteTarget }); // 🔥 ഇവിടെയും quoteTarget ആക്കി മാറ്റി
         }
     }
 ];

@@ -1,3 +1,4 @@
+// plugins/sticker.js - KIRA X MD (Fixed & Full Ratio Fit)
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const sharp = require("sharp");
 const ffmpeg = require("fluent-ffmpeg");
@@ -5,13 +6,11 @@ const fs = require("fs");
 const path = require("path");
 const webp = require("node-webpmux");
 
-// FFmpeg പാത്ത് സെറ്റ് ചെയ്യാൻ
 const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
 if (fs.existsSync(ffmpegPath)) {
     ffmpeg.setFfmpegPath(ffmpegPath);
 }
 
-// ─── Add EXIF Metadata (Watermark) ───
 async function addMetadata(webpFilePath, packName, authorName) {
     try {
         const img = new webp.Image();
@@ -20,7 +19,7 @@ async function addMetadata(webpFilePath, packName, authorName) {
         const exifJSON = {
             "sticker-pack-id": "kira-x-md-sticker",
             "sticker-pack-name": packName || "KIRA X MD",
-            "sticker-author-name": authorName || "Kira",
+            "sticker-author-name": authorName || "Achu\nWa.me/919188252308",
             "emojis": ["🔥", "✨"]
         };
 
@@ -51,7 +50,6 @@ module.exports = {
             return await sock.sendMessage(jid, { text: "⚠️ *Reply to an image or video!*" }, { quoted: msg });
         }
 
-        // ─── Unwrap view‑once ───
         let mediaMsg = quoted;
         if (quoted.viewOnceMessageV2) mediaMsg = quoted.viewOnceMessageV2.message;
         else if (quoted.viewOnceMessage) mediaMsg = quoted.viewOnceMessage.message;
@@ -64,18 +62,16 @@ module.exports = {
             return await sock.sendMessage(jid, { text: "⚠️ *Only images and videos are supported!*" }, { quoted: msg });
         }
 
-        // ─── Pack name & author ───
         let packName = "KIRA X MD";
-        let authorName = "Kira";
+        let authorName = "Achu\nWa.me/919188252308";
         if (args && args.length > 0) {
             const fullText = args.join(" ");
             if (fullText.includes("|")) {
                 const parts = fullText.split("|");
                 packName = parts[0].trim();
-                authorName = parts[1] ? parts[1].trim() : "Kira";
+                authorName = parts[1] ? parts[1].trim() : "Achu\nWa.me/919188252308";
             } else {
                 packName = fullText.trim();
-                authorName = "Kira";
             }
         }
 
@@ -92,35 +88,35 @@ module.exports = {
             );
 
             const tempDir = path.join(__dirname, "../temp");
-            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
 
             if (isImage) {
-                // ─── Image → Static Sticker ───
                 inputPath = path.join(tempDir, `in_${Date.now()}.jpg`);
                 outputPath = path.join(tempDir, `out_${Date.now()}.webp`);
                 fs.writeFileSync(inputPath, buffer);
 
                 await sharp(inputPath)
-                    .resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .resize(512, 512, { fit: "cover" })
                     .webp({ quality: 90 })
                     .toFile(outputPath);
             } else {
-                // ─── Video → Animated Sticker ───
                 inputPath = path.join(tempDir, `in_${Date.now()}.mp4`);
                 outputPath = path.join(tempDir, `out_${Date.now()}.webp`);
                 fs.writeFileSync(inputPath, buffer);
 
                 await new Promise((resolve, reject) => {
                     ffmpeg(inputPath)
-                        .inputOptions(["-t", "10"]) // 10 സെക്കൻഡിൽ കൂടുതലുള്ള വീഡിയോ കട്ട് ചെയ്യും (സ്റ്റിക്കർ സൈസ് കൂടില്ല)
+                        .inputOptions(["-t", "10"])
                         .outputOptions([
                             "-vcodec", "libwebp",
-                            "-vf", "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0", // Background color white(transparent)
+                            "-vf", "scale=512:512:force_original_aspect_ratio=increase,crop=512:512,fps=15",
                             "-loop", "0",
                             "-preset", "default",
-                            "-an",          // no audio
+                            "-an",
                             "-vsync", "0",
-                            "-q:v", "50"    // -quality 90 എന്നത് മാറ്റി -q:v ആക്കി (FFmpeg error ഒഴിവാക്കാൻ)
+                            "-q:v", "50"
                         ])
                         .toFormat("webp")
                         .on("end", resolve)
@@ -132,16 +128,13 @@ module.exports = {
                 });
             }
 
-            // ─── Inject metadata ───
             await addMetadata(outputPath, packName, authorName);
 
-            // ─── Send sticker ───
             const stickerBuffer = fs.readFileSync(outputPath);
             await sock.sendMessage(jid, { sticker: stickerBuffer }, { quoted: msg });
 
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
-            // ─── Cleanup ───
             if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
             if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
 

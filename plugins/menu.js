@@ -4,91 +4,49 @@ module.exports = {
     category: "main",
 
     async execute(sock, msg) {
-
         const jid = msg.key.remoteJid;
-        const pushname =
-            msg.pushName || "User";
+        const pushname = msg.pushName || "User";
+        const prefix = process.env.PREFIX || ".";
+        const mode = process.env.MODE || "public";
+        
+        // Uptime Calculation
+        const uptime = process.uptime();
+        const h = Math.floor(uptime / 3600);
+        const m = Math.floor((uptime % 3600) / 60);
+        const s = Math.floor(uptime % 60);
+        const uptimeText = `${h}h ${m}m ${s}s`;
 
-        const prefix =
-            process.env.PREFIX || ".";
-
-        const mode =
-            process.env.MODE || "public";
-
-        const uptime =
-            process.uptime();
-
-        const h =
-            Math.floor(uptime / 3600);
-        const m =
-            Math.floor(
-                (uptime % 3600) / 60
-            );
-        const s =
-            Math.floor(uptime % 60);
-
-        const uptimeText =
-            `${h}h ${m}m ${s}s`;
-
-        const commands =
-            global.commands || [];
-
+        const commands = global.commands || [];
         const categories = {};
 
         for (const cmd of commands) {
-
-            const cat =
-                (cmd.category || "other")
-                .toUpperCase();
-
-            if (!categories[cat])
-                categories[cat] = [];
-
-            categories[cat].push(
-                `${prefix}${cmd.name}`
-            );
+            const cat = (cmd.category || "other").toUpperCase();
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(`${prefix}${cmd.name}`);
         }
 
-        let menu = `
-╭──────────────────────
-│      K I R A   X   M D
-├──────────────────────
-│ USER     : ${pushname}
-│ PREFIX   : ${prefix}
-│ MODE     : ${mode.toUpperCase()}
-│ UPTIME   : ${uptimeText}
-│ PLUGINS  : ${commands.length}
-╰──────────────────────
-`;
+        // 🔥 Horror Glitch Menu Design
+        let menu = `🩸 𝕶 𝕴 𝕽 𝕬  𝖃  𝕸 𝕯 🩸\n\n`;
+        menu += `╔══════════════ ♱\n`;
+        menu += `╠ ♱ 𝔘𝔰𝔢𝔯 : ${pushname}\n`;
+        menu += `╠ ♱ 𝔓𝔯𝔢𝔣𝔦𝔵 : ${prefix}\n`;
+        menu += `╠ ♱ 𝔐𝔬𝔡𝔢 : ${mode.toUpperCase()}\n`;
+        menu += `╠ ♱ 𝔘𝔭𝔱𝔦𝔪𝔢 : ${uptimeText}\n`;
+        menu += `╠ ♱ 𝔓𝔩𝔲𝔤𝔦𝔫𝔰 : ${commands.length}\n`;
+        menu += `╚══════════════ ♱\n\n`;
 
         for (const category of Object.keys(categories)) {
-
-            menu += `
-
-┌─ ${category}
-`;
-
+            menu += `♱ ── ❴ ${category} ❵ ── ♱\n`;
             for (const cmd of categories[category]) {
-                menu += `│ ${cmd}\n`;
+                menu += `╟ ☠️ ${cmd}\n`;
             }
-
-            menu += `└────────────────`;
+            menu += `╚══════════════ ♱\n\n`;
         }
 
-        menu += `
-
-━━━━━━━━━━━━━━━━━━━━━━
-      The Ghost In The System
-━━━━━━━━━━━━━━━━━━━━━━`;
-
-        await sock.sendMessage(
-            jid,
-            {
-                text: menu
-            },
-            {
-                quoted: msg
-            }
-        );
+        // Send Message with Image
+        await sock.sendMessage(jid, {
+            image: { url: "https://files.catbox.moe/22x0j5.jpeg" },
+            caption: menu
+        }, { quoted: msg });
     }
 };
