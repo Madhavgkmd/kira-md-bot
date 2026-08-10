@@ -1,3 +1,5 @@
+const { getSettings, updateSetting } = require('../lib/database');
+
 module.exports = {
     name: "autodl",
     alias: ["adl"],
@@ -6,149 +8,62 @@ module.exports = {
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
+        
+        // ബോട്ടിന്റെ നമ്പർ എടുത്ത് അതിന്റെ മാത്രം സെറ്റിങ്സ് വിളിക്കുന്നു
+        const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+        const config = getSettings(botNumber);
 
-        global.autoDlChats =
-            global.autoDlChats || [];
+        let autoDlChats = config.autoDlChats || [];
 
-        global.autoDlAllGroups =
-            global.autoDlAllGroups || false;
-
-        global.autoDlAllDms =
-            global.autoDlAllDms || false;
-
-        const action =
-            (args[0] || "").toLowerCase();
-
-        const target =
-            (args[1] || "").toLowerCase();
+        const action = (args[0] || "").toLowerCase();
+        const target = (args[1] || "").toLowerCase();
 
         if (action === "on") {
-
             if (target === "groups") {
-                global.autoDlAllGroups = true;
-
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-                            "✅ AutoDL enabled for all groups."
-                    },
-                    { quoted: msg }
-                );
+                updateSetting(botNumber, "autoDlAllGroups", true);
+                return sock.sendMessage(jid, { text: "✅ AutoDL enabled for all groups." }, { quoted: msg });
             }
 
             if (target === "dms") {
-                global.autoDlAllDms = true;
-
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-                            "✅ AutoDL enabled for all DMs."
-                    },
-                    { quoted: msg }
-                );
+                updateSetting(botNumber, "autoDlAllDms", true);
+                return sock.sendMessage(jid, { text: "✅ AutoDL enabled for all DMs." }, { quoted: msg });
             }
 
-            if (
-                !global.autoDlChats.includes(
-                    jid
-                )
-            ) {
-                global.autoDlChats.push(
-                    jid
-                );
+            if (!autoDlChats.includes(jid)) {
+                autoDlChats.push(jid);
+                updateSetting(botNumber, "autoDlChats", autoDlChats);
             }
-
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-                        "✅ AutoDL enabled in this chat."
-                },
-                { quoted: msg }
-            );
+            return sock.sendMessage(jid, { text: "✅ AutoDL enabled in this chat." }, { quoted: msg });
         }
 
         if (action === "off") {
-
             if (target === "groups") {
-                global.autoDlAllGroups =
-                    false;
-
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-                            "❌ AutoDL disabled for all groups."
-                    },
-                    { quoted: msg }
-                );
+                updateSetting(botNumber, "autoDlAllGroups", false);
+                return sock.sendMessage(jid, { text: "❌ AutoDL disabled for all groups." }, { quoted: msg });
             }
 
             if (target === "dms") {
-                global.autoDlAllDms =
-                    false;
-
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-                            "❌ AutoDL disabled for all DMs."
-                    },
-                    { quoted: msg }
-                );
+                updateSetting(botNumber, "autoDlAllDms", false);
+                return sock.sendMessage(jid, { text: "❌ AutoDL disabled for all DMs." }, { quoted: msg });
             }
 
-            global.autoDlChats =
-                global.autoDlChats.filter(
-                    x => x !== jid
-                );
-
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-                        "❌ AutoDL disabled in this chat."
-                },
-                { quoted: msg }
-            );
+            autoDlChats = autoDlChats.filter(x => x !== jid);
+            updateSetting(botNumber, "autoDlChats", autoDlChats);
+            return sock.sendMessage(jid, { text: "❌ AutoDL disabled in this chat." }, { quoted: msg });
         }
 
         if (action === "status") {
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-`╭──〔 AUTO DL STATUS 〕
-├ Chat : ${
-global.autoDlChats.includes(
-jid
-)
-? "ON"
-: "OFF"
-}
-├ Groups : ${
-global.autoDlAllGroups
-? "ON"
-: "OFF"
-}
-├ DMs : ${
-global.autoDlAllDms
-? "ON"
-: "OFF"
-}
+            return sock.sendMessage(jid, {
+                text: `╭──〔 AUTO DL STATUS 〕
+├ Chat : ${autoDlChats.includes(jid) ? "ON" : "OFF"}
+├ Groups : ${config.autoDlAllGroups ? "ON" : "OFF"}
+├ DMs : ${config.autoDlAllDms ? "ON" : "OFF"}
 ╰────────────`
-                },
-                { quoted: msg }
-            );
+            }, { quoted: msg });
         }
 
-        return sock.sendMessage(
-            jid,
-            {
-                text:
-`╭──〔 AUTO DL 〕
+        return sock.sendMessage(jid, {
+            text: `╭──〔 AUTO DL 〕
 ├ .autodl on
 ├ .autodl off
 ├ .autodl status
@@ -156,47 +71,35 @@ global.autoDlAllDms
 ├ .autodl off groups
 ├ .autodl on dms
 ╰ .autodl off dms`
-            },
-            { quoted: msg }
-        );
+        }, { quoted: msg });
     }
 };
 
+// ─── AUTO DOWNLOADER HANDLER ───
 async function handleAutoDownload(text, sock, msg) {
     try {
         const jid = msg.key.remoteJid;
         const isGroup = jid.endsWith("@g.us");
         const commands = global.commands || [];
 
-        const enabled =
-            global.autoDlChats?.includes(jid) ||
-            (global.autoDlAllGroups && isGroup) ||
-            (global.autoDlAllDms && !isGroup);
+        // ഇവിടെയും ആ ബോട്ടിന്റെ സ്വന്തം സെറ്റിങ്സ് തന്നെ എടുക്കുന്നു
+        const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+        const config = getSettings(botNumber);
 
-        console.log("========== AUTO DL ==========");
-        console.log("TEXT:", text);
-        console.log("CHAT:", jid);
-        console.log("ENABLED:", enabled);
+        const enabled =
+            config.autoDlChats?.includes(jid) ||
+            (config.autoDlAllGroups && isGroup) ||
+            (config.autoDlAllDms && !isGroup);
 
         if (!enabled || !text) {
-            console.log("AUTO DL SKIPPED");
             return false;
         }
 
         const url = text.trim();
 
-        console.log("URL:", url);
-
         // Instagram
         if (/instagram\.com/i.test(url)) {
-            console.log("INSTAGRAM DETECTED");
-
-            const cmd = commands.find(
-                c => c.name === "insta"
-            );
-
-            console.log("CMD:", !!cmd);
-
+            const cmd = commands.find(c => c.name === "insta");
             if (cmd) {
                 await cmd.execute(sock, msg, [url]);
                 return true;
@@ -205,14 +108,7 @@ async function handleAutoDownload(text, sock, msg) {
 
         // Facebook
         if (/facebook\.com|fb\.watch/i.test(url)) {
-            console.log("FACEBOOK DETECTED");
-
-            const cmd = commands.find(
-                c => c.name === "fb"
-            );
-
-            console.log("CMD:", !!cmd);
-
+            const cmd = commands.find(c => c.name === "fb");
             if (cmd) {
                 await cmd.execute(sock, msg, [url]);
                 return true;
@@ -221,14 +117,7 @@ async function handleAutoDownload(text, sock, msg) {
 
         // YouTube
         if (/youtube\.com|youtu\.be/i.test(url)) {
-            console.log("YOUTUBE DETECTED");
-
-            const cmd = commands.find(
-                c => c.name === "ytv"
-            );
-
-            console.log("CMD:", !!cmd);
-
+            const cmd = commands.find(c => c.name === "ytv");
             if (cmd) {
                 await cmd.execute(sock, msg, [url]);
                 return true;
@@ -236,44 +125,22 @@ async function handleAutoDownload(text, sock, msg) {
         }
 
         // TikTok
-if (
-    /https?:\/\/(?:www\.|m\.|vm\.|vt\.)?tiktok\.com/i.test(url)
-) {
-    console.log("TIKTOK DETECTED:", url);
-
-    const cmd = commands.find(
-        c => c.name === "tiktok"
-    );
-
-    console.log("CMD FOUND:", !!cmd);
-
-    if (cmd) {
-        await cmd.execute(
-            sock,
-            msg,
-            [url]
-        );
-
-        return true;
-    }
-}
-        // Twitter / X
-        if (/twitter\.com|x\.com/i.test(url)) {
-            console.log("TWITTER DETECTED");
-
-            const cmd = commands.find(
-                c => c.name === "twitter"
-            );
-
-            console.log("CMD:", !!cmd);
-
+        if (/https?:\/\/(?:www\.|m\.|vm\.|vt\.)?tiktok\.com/i.test(url)) {
+            const cmd = commands.find(c => c.name === "tiktok");
             if (cmd) {
                 await cmd.execute(sock, msg, [url]);
                 return true;
             }
         }
-
-        console.log("NO MATCH");
+        
+        // Twitter / X
+        if (/twitter\.com|x\.com/i.test(url)) {
+            const cmd = commands.find(c => c.name === "twitter");
+            if (cmd) {
+                await cmd.execute(sock, msg, [url]);
+                return true;
+            }
+        }
 
         return false;
 
@@ -283,5 +150,4 @@ if (
     }
 }
 
-module.exports.handleAutoDownload =
-    handleAutoDownload;
+module.exports.handleAutoDownload = handleAutoDownload;

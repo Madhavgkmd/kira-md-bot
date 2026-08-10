@@ -39,7 +39,7 @@ module.exports = {
     name: "sticker",
     alias: ["s", "stik"],
     category: "sticker",
-    description: "Convert image/video/GIF to high-quality sticker",
+    description: "Convert image/video/GIF to high-quality sticker (Maintains Aspect Ratio)",
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
@@ -97,8 +97,12 @@ module.exports = {
                 outputPath = path.join(tempDir, `out_${Date.now()}.webp`);
                 fs.writeFileSync(inputPath, buffer);
 
+                // 🔥 Image Aspect Ratio Fix: 'contain' with transparent background
                 await sharp(inputPath)
-                    .resize(512, 512, { fit: "cover" })
+                    .resize(512, 512, { 
+                        fit: "contain", 
+                        background: { r: 0, g: 0, b: 0, alpha: 0 } 
+                    })
                     .webp({ quality: 90 })
                     .toFile(outputPath);
             } else {
@@ -106,12 +110,13 @@ module.exports = {
                 outputPath = path.join(tempDir, `out_${Date.now()}.webp`);
                 fs.writeFileSync(inputPath, buffer);
 
+                // 🔥 Video Aspect Ratio Fix: scale and pad with transparency
                 await new Promise((resolve, reject) => {
                     ffmpeg(inputPath)
                         .inputOptions(["-t", "10"])
                         .outputOptions([
                             "-vcodec", "libwebp",
-                            "-vf", "scale=512:512:force_original_aspect_ratio=increase,crop=512:512,fps=15",
+                            "-vf", "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0",
                             "-loop", "0",
                             "-preset", "default",
                             "-an",

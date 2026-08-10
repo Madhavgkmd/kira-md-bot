@@ -1,4 +1,4 @@
-// plugins/mentionme.js – KIRA X MD (Mention Triggered Media Reply)
+// plugins/mentionme.js – KIRA X MD (Mention Triggered Audio)
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -23,7 +23,7 @@ function saveDB(data) {
     } catch (err) {}
 }
 
-// ─── Audio list (your URLs) ────────────────────────────
+// ─── Audio URLs (replace with your own) ──────────────────
 const AUDIO_LIST = [
     "https://files.catbox.moe/ejvyvx.mp3",
     "https://files.catbox.moe/ljngz7.mp3",
@@ -39,7 +39,7 @@ module.exports = {
     name: 'mentionme',
     alias: ['maudio', 'tagaudio'],
     category: 'ai',
-    description: 'Toggle auto-audio reply when bot is mentioned',
+    description: 'Toggle auto-audio reply when YOU are mentioned',
     usage: `${process.env.PREFIX || '.'}mentionme on/off`,
 
     async execute(sock, msg, args, isOwner) {
@@ -69,7 +69,7 @@ module.exports = {
     }
 };
 
-// ─── Background listener (called from index.js) ────────
+// ─── Background listener ──────────────────────────────
 async function initMentionMe(sock) {
     sock.ev.on('messages.upsert', async ({ messages }) => {
         try {
@@ -86,52 +86,49 @@ async function initMentionMe(sock) {
             const text = msg.message?.conversation ||
                          msg.message?.extendedTextMessage?.text ||
                          '';
-                         
-            // സ്വന്തം മെസ്സേജുകൾക്കും കമാൻഡുകൾക്കും പാട്ട് പോകാതിരിക്കാൻ
-            const isCommand = text.trim().startsWith(process.env.PREFIX || '.');
-            if (isCommand || msg.key.fromMe || msg.message?.audioMessage) return;
+            const prefix = process.env.PREFIX || '.';
+            if (text.trim().startsWith(prefix)) return;
+            if (msg.key.fromMe) return;
 
             const mentionedJid = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             const repliedTo = msg.message?.extendedTextMessage?.contextInfo?.participant || '';
             const lowerText = text.toLowerCase();
 
-            // ─── Get bot and owner details ──────────────────
+            // ─── Get bot/owner details ──────────────────
+            const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+            const botJidLid = sock.user.id.split(':')[0] + '@lid';
             const botPhone = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
-            const ownerPhone = global.ownerNumber ? global.ownerNumber.replace(/[^0-9]/g, '') : '';
-            
-            // 🔥 നിന്റെ കൃത്യമായ നമ്പർ ഇവിടെയുണ്ട്
-            const myExactNumber = "917907199765"; 
 
-            // ─── Check if mentioned ─────────────────────────
             let isMentioned = false;
 
-            // 1. വാട്സാപ്പ് ഒറിജിനൽ ടാഗ് ലിസ്റ്റ് ചെക്ക് (നമ്പറുകൾ ഉണ്ടോ എന്ന്)
-            if (mentionedJid.some(id => id.includes(botPhone) || (ownerPhone && id.includes(ownerPhone)) || id.includes(myExactNumber))) {
+            // 1. Standard WhatsApp mention (JID in mentionedJid)
+            if (mentionedJid.includes(botJid) || mentionedJid.includes(botJidLid)) {
                 isMentioned = true;
             }
 
-            // 2. നിന്റെയോ ബോട്ടിന്റെയോ മെസ്സേജിന് റിപ്ലൈ അടിച്ചതാണോ എന്ന് നോക്കുന്നു
-            if (repliedTo.includes(botPhone) || (ownerPhone && repliedTo.includes(ownerPhone)) || repliedTo.includes(myExactNumber)) {
+            // 2. Reply to bot's message
+            if (repliedTo === botJid || repliedTo === botJidLid) {
                 isMentioned = true;
             }
 
-            // 3. പ്ലെയിൻ ടെക്സ്റ്റ് ടാഗ് (@all അല്ലെങ്കിൽ @നമ്പർ ടൈപ്പ് ചെയ്തത്)
-            if (lowerText.includes('@all') || lowerText.includes(`@${botPhone}`) || (ownerPhone && lowerText.includes(`@${ownerPhone}`)) || lowerText.includes(`@${myExactNumber}`)) {
+            // 3. Text contains @phone or @all
+            if (lowerText.includes('@all') || lowerText.includes(`@${botPhone}`)) {
                 isMentioned = true;
             }
 
-            // 4. 🔥 നമ്മൾ മുമ്പ് ഉണ്ടാക്കിയ Pushname Bypass (ഇതാണ് നിനക്ക് ഇപ്പോൾ വർക്ക് ആവാത്തത്!)
-            if (lowerText.includes('lucius') || lowerText.includes('castus') || lowerText.includes('@~')) {
+            // 4. Also check bot's display name (in case it's different)
+            const botDisplayName = sock.user.name || sock.user.verifiedName || '';
+            if (botDisplayName && lowerText.includes(botDisplayName.toLowerCase())) {
                 isMentioned = true;
             }
 
             if (!isMentioned) return;
 
-            // ─── Reply with random audio ──────────────────
-            console.log('🎤 Bot/Owner mentioned! Sending audio...');
+            console.log('🎤 YOU were mentioned! Sending audio...');
+
+            // ─── Send random audio ─────────────────────────
             const randomAudioUrl = AUDIO_LIST[Math.floor(Math.random() * AUDIO_LIST.length)];
 
-            // വാട്സാപ്പിൽ "Recording audio..." എന്ന് കാണിക്കാൻ
             await sock.sendPresenceUpdate('recording', jid);
 
             const tempMp3 = path.join(process.cwd(), `temp_${Date.now()}.mp3`);

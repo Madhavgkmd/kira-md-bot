@@ -1,4 +1,4 @@
-const { startSubBot } = require('../lib/subbot'); // പാത്ത് കൃത്യമാണോ എന്ന് നോക്കുക (lib ഫോൾഡർ എവിടെയാണോ അതനുസരിച്ച്)
+const { startSubBot } = require('../lib/subbot'); 
 
 module.exports = {
     name: 'pair',
@@ -14,14 +14,14 @@ module.exports = {
 
         if (!textArgs) {
             return sock.sendMessage(jid, { 
-                text: `❌ *Please provide a WhatsApp number!*\n\n*Example:* ${prefix}pair 919876543210` 
+                text: `╭━━━〔 ✦ 𝑷𝑨𝑰𝑹𝑰𝑵𝑮 ✦ 〕━━━⬣\n┃ ⚠️ *Number is missing!*\n┃\n┃ 📌 *Example:*\n┃ ${prefix}pair 919876543210\n╰━━━━━━━━━━━━━━━⬣` 
             }, { quoted: msg });
         }
 
         let phoneNumber = textArgs.replace(/[^0-9]/g, ''); 
 
         await sock.sendMessage(jid, { 
-            text: `⏳ _Requesting pairing code for +${phoneNumber}... Please wait._` 
+            text: `╭━━━〔 ✦ 𝑲𝑰𝑹𝑨 𝑿 𝑴𝑫 ✦ 〕━━━⬣\n┃ 🔄 *Processing Request...*\n┃ 📡 *Target:* +${phoneNumber}\n┃\n┃ _Generating your pairing code..._\n╰━━━━━━━━━━━━━━━⬣` 
         }, { quoted: msg });
 
         // lib/subbot.js ലെ ഫംഗ്ഷൻ വിളിക്കുന്നു

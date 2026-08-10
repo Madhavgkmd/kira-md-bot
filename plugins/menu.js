@@ -7,7 +7,9 @@ module.exports = {
         const jid = msg.key.remoteJid;
         const pushname = msg.pushName || "User";
         const prefix = process.env.PREFIX || ".";
-        const mode = process.env.MODE || "public";
+        
+        // 🔥 തിരുത്തിയത്: process.env.MODE മാറ്റി global.botMode ആക്കി!
+        const mode = global.botMode || "public"; 
         
         // Uptime Calculation
         const uptime = process.uptime();
@@ -38,7 +40,7 @@ module.exports = {
         for (const category of Object.keys(categories)) {
             menu += `♱ ── ❴ ${category} ❵ ── ♱\n`;
             for (const cmd of categories[category]) {
-                menu += `╟ ☠️ ${cmd}\n`;
+                menu += `╟ ♡ ${cmd}\n`;
             }
             menu += `╚══════════════ ♱\n\n`;
         }
