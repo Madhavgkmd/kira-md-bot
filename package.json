@@ -27,7 +27,10 @@
     "sharp": "^0.35.1",
     "shazam-api": "^0.3.0",
     "wa-sticker-formatter": "^4.4.4",
-    "yt-search": "^2.13.1"
+    "yt-search": "^2.13.1",
+    "qrcode": "^1.5.3",
+    "qrcode-reader": "^1.0.4",
+   "jimp": "^1.6.1"
   },
   "devDependencies": {
     "javascript-obfuscator": "^5.4.3"
