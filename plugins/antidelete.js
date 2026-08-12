@@ -1,43 +1,41 @@
+const { getSettings, updateSetting } = require('../lib/database');
+
 module.exports = {
     name: "antidelete",
     alias: ["ad"],
     category: "owner",
 
     async execute(sock, msg, args) {
-
         const jid = msg.key.remoteJid;
-
-        global.antiDeleteChats = global.antiDeleteChats || [];
-
+        
+        // ബോട്ടിന്റെ നമ്പർ എടുത്ത് ഡാറ്റാബേസിൽ നിന്ന് സെറ്റിങ്സ് വിളിക്കുന്നു
+        const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+        const config = getSettings(botNumber);
+        
+        let antiDeleteChats = config.antiDeleteChats || [];
         const action = (args[0] || "").toLowerCase();
 
         if (action === "on") {
-
-            if (!global.antiDeleteChats.includes(jid)) {
-                global.antiDeleteChats.push(jid);
+            if (!antiDeleteChats.includes(jid)) {
+                antiDeleteChats.push(jid);
+                updateSetting(botNumber, "antiDeleteChats", antiDeleteChats);
             }
-
             return sock.sendMessage(jid, {
-                text: "✅ AntiDelete Enabled"
+                text: "✅ AntiDelete Enabled (For this bot)"
             }, { quoted: msg });
         }
 
         if (action === "off") {
-
-            global.antiDeleteChats =
-                global.antiDeleteChats.filter(x => x !== jid);
+            antiDeleteChats = antiDeleteChats.filter(x => x !== jid);
+            updateSetting(botNumber, "antiDeleteChats", antiDeleteChats);
 
             return sock.sendMessage(jid, {
-                text: "❌ AntiDelete Disabled"
+                text: "❌ AntiDelete Disabled (For this bot)"
             }, { quoted: msg });
         }
 
         return sock.sendMessage(jid, {
-            text:
-`*ANTI DELETE*
-
-.antidelete on
-.antidelete off`
+            text: `*ANTI DELETE*\n\n.antidelete on\n.antidelete off`
         }, { quoted: msg });
     }
 };

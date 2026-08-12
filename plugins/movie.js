@@ -35,11 +35,13 @@ function formatMovieDetails(d) {
     const genres = d.genres ? d.genres.map(g => g.name).join(', ') : 'N/A';
     const overview = d.overview || 'No description available.';
     const poster = d.poster_path ? `${IMAGE_BASE}${d.poster_path}` : null;
-    const director = d.credits.crew.find(c => c.job === "Director")?.name || "N/A";
-    const cast = d.credits.cast.slice(0, 5).map(a => a.name).join(', ');
-    const trailerData = d.videos.results.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+    
+    // എറർ വരാതിരിക്കാൻ സുരക്ഷിതമായ ചെക്കിങ് (Optional Chaining)
+    const director = d.credits?.crew?.find(c => c.job === "Director")?.name || "N/A";
+    const cast = d.credits?.cast?.slice(0, 5).map(a => a.name).join(', ') || "N/A";
+    const trailerData = d.videos?.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
     const trailer = trailerData ? `https://youtube.com/watch?v=${trailerData.key}` : null;
-    const similarMovies = d.similar.results.slice(0, 5).map(m => m.title).join(', ');
+    const similarMovies = d.similar?.results?.slice(0, 5).map(m => m.title).join(', ') || "None";
 
     return { title, year, rating, runtime, genres, overview, poster, director, cast, trailer, similarMovies };
 }
@@ -50,72 +52,55 @@ module.exports = {
     alias: ['movies', 'film'],
     category: 'search',
     description: 'Search movies (TMDB) – details, cast, trailer, similar',
-    usage: '.movie <title> or .movie <number>',
+    usage: '.movie <title>',
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
-        const sender = msg.key.participant || msg.key.remoteJid;
         const query = args.join(' ').trim();
 
-        // ── Handle Number Selection (Reply/Direct) ──
-        if (!isNaN(query) && global._lastMovieSearch?.[jid]) {
-            const idx = parseInt(query) - 1;
-            const results = global._lastMovieSearch[jid];
-            
-            if (idx >= 0 && idx < results.length) {
-                await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
-                try {
-                    const details = await getMovieDetails(results[idx].id);
-                    const formatted = formatMovieDetails(details);
-                    
-                    const caption = `🎬 *${formatted.title}* (${formatted.year})\n\n` +
-                        `⭐ *IMDb:* ${formatted.rating}/10\n` +
-                        `🎭 *Genre:* ${formatted.genres}\n` +
-                        `⏱ *Runtime:* ${formatted.runtime}\n` +
-                        `🎬 *Director:* ${formatted.director}\n\n` +
-                        `📝 *Story:*\n${formatted.overview.substring(0, 200)}...\n\n` +
-                        `👥 *Cast:* ${formatted.cast}\n\n` +
-                        (formatted.trailer ? `🎥 *Trailer:* ${formatted.trailer}\n\n` : '') +
-                        `🍿 *Similar:* ${formatted.similarMovies}` +
-                        WATERMARK;
-
-                    if (formatted.poster) {
-                        await sock.sendMessage(jid, { image: { url: formatted.poster }, caption: caption }, { quoted: msg });
-                    } else {
-                        await sock.sendMessage(jid, { text: caption }, { quoted: msg });
-                    }
-                    await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
-                } catch (err) {
-                    await sock.sendMessage(jid, { text: `❌ Error fetching details.` });
-                }
-                return;
-            }
+        if (!query) {
+            return await sock.sendMessage(jid, { text: "⚠️ *Usage:* .movie <movie name>\n*Example:* .movie Titanic" }, { quoted: msg });
         }
-
-        // ── Normal Search ──
-        if (!query) return await sock.sendMessage(jid, { text: "⚠️ Use: .movie <movie name>" }, { quoted: msg });
 
         await sock.sendMessage(jid, { react: { text: "🔍", key: msg.key } });
 
         try {
+            // സിനിമ തിരയുന്നു
             const results = await searchMovies(query);
-            if (!results || results.length === 0) return await sock.sendMessage(jid, { text: `❌ No movies found for "${query}"` });
-
-            global._lastMovieSearch = global._lastMovieSearch || {};
-            global._lastMovieSearch[jid] = results;
-
-            let msgText = `🎬 *MOVIE SEARCH: "${query}"*\n\n`;
-            results.slice(0, 10).forEach((movie, i) => {
-                const year = movie.release_date ? movie.release_date.split('-')[0] : 'N/A';
-                msgText += `${i+1}. *${movie.title}* (${year})\n`;
-            });
-            msgText += `\n_Reply/Type .movie <number> to get details._` + WATERMARK;
             
-            await sock.sendMessage(jid, { text: msgText }, { quoted: msg });
+            if (!results || results.length === 0) {
+                await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+                return await sock.sendMessage(jid, { text: `❌ No movies found for "${query}"` }, { quoted: msg });
+            }
+
+            // ലിസ്റ്റിലെ ആദ്യത്തെ സിനിമ എടുക്കുന്നു
+            const firstMovie = results[0];
+            const details = await getMovieDetails(firstMovie.id);
+            const formatted = formatMovieDetails(details);
+            
+            const caption = `🎬 *${formatted.title}* (${formatted.year})\n\n` +
+                `⭐ *IMDb:* ${formatted.rating}/10\n` +
+                `🎭 *Genre:* ${formatted.genres}\n` +
+                `⏱ *Runtime:* ${formatted.runtime}\n` +
+                `🎬 *Director:* ${formatted.director}\n\n` +
+                `📝 *Story:*\n${formatted.overview.substring(0, 300)}...\n\n` +
+                `👥 *Cast:* ${formatted.cast}\n\n` +
+                (formatted.trailer ? `🎥 *Trailer:* ${formatted.trailer}\n\n` : '') +
+                `🍿 *Similar:* ${formatted.similarMovies}` +
+                WATERMARK;
+
+            if (formatted.poster) {
+                await sock.sendMessage(jid, { image: { url: formatted.poster }, caption: caption }, { quoted: msg });
+            } else {
+                await sock.sendMessage(jid, { text: caption }, { quoted: msg });
+            }
+            
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
         } catch (err) {
-            await sock.sendMessage(jid, { text: `❌ Failed: ${err.message}` });
+            console.error("Movie plugin error:", err);
+            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+            await sock.sendMessage(jid, { text: `❌ Failed to fetch movie details. Please try again later.` }, { quoted: msg });
         }
     }
 };

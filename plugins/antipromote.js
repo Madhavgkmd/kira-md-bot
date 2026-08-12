@@ -1,6 +1,5 @@
 // plugins/antipromote.js – KIRA X MD (Anti-Promote & Anti-Demote)
-global.antiPromoteChats = global.antiPromoteChats || [];
-global.antiDemoteChats = global.antiDemoteChats || [];
+const { getSettings, updateSetting } = require('../lib/database');
 
 const recentActions = {};
 
@@ -17,9 +16,9 @@ function getPhoneFromJid(jid) {
     return jid.split('@')[0].replace(/[^0-9]/g, '');
 }
 
-function isOwnerJid(authorPhone) {
-    const ownerPhone = process.env.BOT_NUMBER ? process.env.BOT_NUMBER.replace(/[^0-9]/g, '') : '';
-    return authorPhone === ownerPhone;
+function isOwnerJid(authorPhone, botPhone) {
+    const mainOwnerPhone = process.env.OWNER_NUMBER ? process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') : '';
+    return authorPhone === mainOwnerPhone || authorPhone === botPhone;
 }
 
 function isSudoJid(authorPhone) {
@@ -46,21 +45,27 @@ async function getRealAuthor(sock, jid, author) {
 // ─── COMMAND LOGIC ───
 const handleToggle = async (sock, msg, args, isOwner, isPromote) => {
     const jid = msg.key.remoteJid;
+    
+    // 🔥 Admin പെർമിഷൻ ഒഴിവാക്കി. വെറും Owner-ന് മാത്രം!
+    if (!isOwner) {
+        return await sock.sendMessage(jid, { text: '❌ *Owner only command!*' }, { quoted: msg });
+    }
+
     if (!jid.endsWith('@g.us')) return await sock.sendMessage(jid, { text: '❌ *Group only!*' }, { quoted: msg });
 
-    const sender = msg.key.participant || jid;
-    const groupMeta = await sock.groupMetadata(jid);
-    const isAdmin = groupMeta.participants.some(p => p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin'));
-    if (!isAdmin && !isOwner) return await sock.sendMessage(jid, { text: '❌ *Admins only!*' }, { quoted: msg });
+    const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+    const config = getSettings(botNumber);
 
-    const targetList = isPromote ? global.antiPromoteChats : global.antiDemoteChats;
+    let targetList = isPromote ? (config.antiPromoteChats || []) : (config.antiDemoteChats || []);
     const targetName = isPromote ? 'Anti‑Promote' : 'Anti‑Demote';
+    const dbKey = isPromote ? 'antiPromoteChats' : 'antiDemoteChats';
     const action = (args && args.length) ? args[0].toLowerCase() : '';
 
     if (action === 'on') {
         if (!targetList.includes(jid)) {
             targetList.push(jid);
-            await sock.sendMessage(jid, { text: `✅ *${targetName} enabled*` }, { quoted: msg });
+            updateSetting(botNumber, dbKey, targetList);
+            await sock.sendMessage(jid, { text: `✅ *${targetName} enabled* (For this bot)` }, { quoted: msg });
         } else {
             await sock.sendMessage(jid, { text: `⚠️ *Already enabled*` }, { quoted: msg });
         }
@@ -68,7 +73,8 @@ const handleToggle = async (sock, msg, args, isOwner, isPromote) => {
         const idx = targetList.indexOf(jid);
         if (idx !== -1) {
             targetList.splice(idx, 1);
-            await sock.sendMessage(jid, { text: `❌ *${targetName} disabled*` }, { quoted: msg });
+            updateSetting(botNumber, dbKey, targetList);
+            await sock.sendMessage(jid, { text: `❌ *${targetName} disabled* (For this bot)` }, { quoted: msg });
         } else {
             await sock.sendMessage(jid, { text: `⚠️ *Already disabled*` }, { quoted: msg });
         }
@@ -78,21 +84,20 @@ const handleToggle = async (sock, msg, args, isOwner, isPromote) => {
     }
 };
 
-// ─── COMMANDS EXPORT ───
 module.exports = [
     {
         name: 'antipromote',
         alias: ['ap'],
-        category: 'group',
-        description: 'Toggle anti-promote protection',
+        category: 'owner',
+        description: 'Toggle anti-promote protection (Owner Only)',
         usage: '.antipromote on/off',
         async execute(sock, msg, args, isOwner) { await handleToggle(sock, msg, args, isOwner, true); }
     },
     {
         name: 'antidemote',
         alias: ['ad'],
-        category: 'group',
-        description: 'Toggle anti-demote protection',
+        category: 'owner',
+        description: 'Toggle anti-demote protection (Owner Only)',
         usage: '.antidemote on/off',
         async execute(sock, msg, args, isOwner) { await handleToggle(sock, msg, args, isOwner, false); }
     }
@@ -109,8 +114,11 @@ async function initAntiPromoteListener(sock) {
 
             if (action !== 'promote' && action !== 'demote') return;
 
+            const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+            const config = getSettings(botNumber);
+
             const isPromote = (action === 'promote');
-            const isProtected = isPromote ? global.antiPromoteChats.includes(jid) : global.antiDemoteChats.includes(jid);
+            const isProtected = isPromote ? (config.antiPromoteChats || []).includes(jid) : (config.antiDemoteChats || []).includes(jid);
             if (!isProtected) return;
 
             const realAuthor = await getRealAuthor(sock, jid, rawAuthor);
@@ -118,7 +126,7 @@ async function initAntiPromoteListener(sock) {
             const botPhone = getPhoneFromJid(sock.user.id);
             
             if (authorPhone === botPhone || rawAuthor === sock.user.id) return;
-            if (isOwnerJid(authorPhone) || isSudoJid(authorPhone)) return;
+            if (isOwnerJid(authorPhone, botPhone) || isSudoJid(authorPhone)) return;
             if (!shouldProcess(jid, action, authorPhone)) return;
 
             const targetUsers = participants.map(p => {
@@ -135,8 +143,8 @@ async function initAntiPromoteListener(sock) {
             });
 
             try {
-                await sock.groupParticipantsUpdate(jid, [realAuthor], 'demote'); // കുറ്റവാളിയെ ഡീമോട്ട് ചെയ്യുന്നു
-                await sock.groupParticipantsUpdate(jid, targetUsers, revertAction); // ആക്ഷൻ റീവേർട്ട് ചെയ്യുന്നു
+                await sock.groupParticipantsUpdate(jid, [realAuthor], 'demote');
+                await sock.groupParticipantsUpdate(jid, targetUsers, revertAction);
             } catch (e) { console.error(e.message); }
 
         } catch (err) { console.error(err); }

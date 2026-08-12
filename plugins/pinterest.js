@@ -7,7 +7,7 @@ module.exports = {
     alias: ['pin', 'pindl', 'pinsearch'],
     category: 'downloader',
     description: 'Download or Search Pinterest media',
-    usage: '.pinterest <URL or Query>', // .env ഒഴിവാക്കി
+    usage: '.pinterest <URL or Query>', 
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
@@ -21,16 +21,16 @@ module.exports = {
 
         await sock.sendMessage(jid, { react: { text: "📌", key: msg.key } });
 
-        const isUrl = input.match(/(https?:\/\/(www\.)?(pinterest\.com|pin\.it)\/[^\s]+)/gi);
+        const isUrlMatch = input.match(/(https?:\/\/(www\.)?(pinterest\.com|pin\.it)\/[^\s]+)/gi);
 
-        if (isUrl) {
-            const url = isUrl;
+        if (isUrlMatch) {
+            const url = isUrlMatch[0];
             let filePath = '';
             let success = false;
 
             try {
-                // നിന്റെ API list നേരിട്ട് ഇവിടെ കൊടുത്തു
                 const apis = [
+                    `https://xeon-apis.onrender.com/pin?url=${encodeURIComponent(url)}`,
                     `https://jerrycoder.oggyapi.workers.dev/down/pinterest?url=${encodeURIComponent(url)}`,
                     `https://api.siputzx.my.id/api/d/pinterest?url=${encodeURIComponent(url)}`,
                     `https://api.ryzendesu.vip/api/downloader/pinterest?url=${encodeURIComponent(url)}`,
@@ -42,13 +42,29 @@ module.exports = {
                     let isVideo = false;
 
                     try {
-                        // Railway Timeout 15s
                         const res = await axios.get(apis[i], { timeout: 15000 });
                         const data = res.data;
 
-                        if (data.data && data.data.url) mediaUrl = data.data.url;
-                        else if (data.url) mediaUrl = data.url;
-                        else if (data.result && data.result.url) mediaUrl = data.result.url;
+                        // 🔥 Xeon API-ക്ക് വേണ്ടി പ്രത്യേകം അപ്ഡേറ്റ് ചെയ്ത ഭാഗം
+                        if (data.videos && data.videos.length > 0) {
+                            mediaUrl = data.videos[0];
+                            isVideo = true;
+                        } else if (data.images && data.images.length > 0) {
+                            mediaUrl = data.images[0];
+                            isVideo = false;
+                        } 
+                        // ബാക്കപ്പ് API-കൾക്ക് വേണ്ടി
+                        else if (typeof data.result === 'string' && data.result.startsWith('http')) {
+                            mediaUrl = data.result;
+                        } else if (data.data && data.data.url) {
+                            mediaUrl = data.data.url;
+                        } else if (data.url) {
+                            mediaUrl = data.url;
+                        } else if (data.result && data.result.url) {
+                            mediaUrl = data.result.url;
+                        } else if (data.media) {
+                            mediaUrl = data.media;
+                        }
 
                         if (!mediaUrl) continue;
 
@@ -56,7 +72,10 @@ module.exports = {
                             continue; 
                         }
 
-                        isVideo = mediaUrl.includes('.mp4') || mediaUrl.includes('video') || (data.result && data.result.type === 'video');
+                        // എക്സ്റ്റൻഷൻ ചെക്ക് ചെയ്യുന്നു
+                        if (!isVideo) {
+                            isVideo = mediaUrl.includes('.mp4') || mediaUrl.includes('video') || (data.result && data.result.type === 'video');
+                        }
 
                         const tempDir = path.join(__dirname, '../temp');
                         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
@@ -64,14 +83,19 @@ module.exports = {
                         const fileName = `pin_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
                         filePath = path.join(tempDir, fileName);
 
+                        // 🔥 Stream എറർ ഒഴിവാക്കാൻ ഹെഡറുകൾ സ്ട്രോങ്ങ് ആക്കി!
                         const writer = fs.createWriteStream(filePath);
                         const mediaRes = await axios({
                             url: mediaUrl,
                             method: 'GET',
                             responseType: 'stream',
                             maxRedirects: 5,
-                            timeout: 20000, // ഡൗൺലോഡ് ചെയ്യാനും സമയം കൂട്ടി കൊടുത്തു
-                            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                            timeout: 20000, 
+                            headers: { 
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
+                                'Referer': 'https://www.pinterest.com/',
+                                'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5'
+                            }
                         });
 
                         mediaRes.data.pipe(writer);
@@ -83,7 +107,7 @@ module.exports = {
 
                         const stats = fs.statSync(filePath);
                         
-                        if (stats.size < 10000) {
+                        if (stats.size < 5000) {
                             fs.unlinkSync(filePath);
                             throw new Error("File is corrupted or too small.");
                         }
@@ -103,10 +127,13 @@ module.exports = {
                         }
 
                         success = true;
+                        try { fs.unlinkSync(filePath); } catch (e) {} // അയച്ച ശേഷം ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു
                         break; 
 
                     } catch (e) {
-                        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                        if (filePath && fs.existsSync(filePath)) {
+                            try { fs.unlinkSync(filePath); } catch (err) {}
+                        }
                     }
                 }
 
@@ -115,7 +142,7 @@ module.exports = {
 
             } catch (err) {
                 console.error("Pinterest DL Error:", err.message); 
-                await sock.sendMessage(jid, { text: `❌ *Download failed:* Server busy.` }, { quoted: msg });
+                await sock.sendMessage(jid, { text: `❌ *Download failed:* Cannot fetch media at this moment.` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
             }
 
@@ -123,7 +150,6 @@ module.exports = {
             // Search ഭാഗം
             try {
                 const searchUrl = `https://jerrycoder.oggyapi.workers.dev/search/pin?q=${encodeURIComponent(input)}&type=image&limit=5`;
-                // Railway Timeout 15s
                 const res = await axios.get(searchUrl, { timeout: 15000 });
                 
                 let results = [];
@@ -145,7 +171,10 @@ module.exports = {
                             const imgRes = await axios.get(imgUrl, {
                                 responseType: 'arraybuffer',
                                 timeout: 10000,
-                                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                                headers: { 
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                                    'Referer': 'https://www.pinterest.com/'
+                                }
                             });
                             
                             await sock.sendMessage(jid, { 

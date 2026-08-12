@@ -1,72 +1,90 @@
+const axios = require('axios');
+
 module.exports = {
     name: 'anime',
     alias: ['searchanime'],
     category: 'anime',
-    description: 'Search anime info from MyAnimeList',
-    usage: `${process.env.PREFIX || '.'}anime <anime name>`,
+    description: 'Search anime info from AniList',
+    usage: `.anime <anime name>`,
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
-        const query = (args && Array.isArray(args) ? args.join(' ') : '').trim();
+        const query = args.join(' ').trim();
 
         if (!query) {
-            await sock.sendMessage(jid, { text: `*📺 ANIME SEARCH*\n\n❌ *Missing anime name*\n➤ Example: ${process.env.PREFIX || '.'}anime Naruto` }, { quoted: msg });
-            return;
+            return await sock.sendMessage(jid, { 
+                text: `❌ *Missing anime name!*\n\n*Example:* .anime Naruto` 
+            }, { quoted: msg });
         }
 
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
         try {
-            const searchUrl = `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&sfw&limit=1`;
-            const response = await fetch(searchUrl);
-            const result = await response.json();
-            
-            // ഇവിടെയാണ് മാറ്റം: result.data ഉണ്ടോ എന്ന് കൃത്യമായി ചെക്ക് ചെയ്യുന്നു
-            if (!result.data || result.data.length === 0) {
-                await sock.sendMessage(jid, { text: `*📺 ANIME SEARCH*\n\n❌ *No anime found*` });
+            // 🔥 മാസ്റ്റർ അപ്ഡേറ്റ്: Jikan-ന് പകരം ഏറ്റവും ഫാസ്റ്റ് ആയ AniList API ഉപയോഗിക്കുന്നു!
+            const graphqlQuery = `
+            query ($search: String) {
+              Media (search: $search, type: ANIME) {
+                title {
+                  romaji
+                  english
+                }
+                episodes
+                status
+                averageScore
+                popularity
+                genres
+                description
+                siteUrl
+                coverImage {
+                  large
+                }
+              }
+            }`;
+
+            const response = await axios.post('https://graphql.anilist.co', {
+                query: graphqlQuery,
+                variables: { search: query }
+            }, { timeout: 15000 });
+
+            const anime = response.data?.data?.Media;
+
+            if (!anime) {
                 await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-                return;
+                return await sock.sendMessage(jid, { text: `❌ *No anime found for "${query}"*` }, { quoted: msg });
             }
 
-            const anime = result.data[0];
-
-            // കൃത്യമായ ഡാറ്റാ ഫീൽഡുകൾ ഉപയോഗിക്കുന്നു
-            const title = anime.title || 'Unknown';
-            const eng = anime.title_english || 'N/A';
+            // കൃത്യമായ ഡാറ്റാ ഫീൽഡുകൾ
+            const title = anime.title.romaji || 'Unknown';
+            const eng = anime.title.english || 'N/A';
             const eps = anime.episodes || 'Unknown';
             const status = anime.status || 'Unknown';
-            const score = anime.score || 'N/A';
-            const rank = anime.rank || 'N/A';
-            const pop = anime.popularity || 'N/A';
-            const members = anime.members ? anime.members.toLocaleString() : 'N/A';
-            const genres = anime.genres ? anime.genres.map(g => g.name).join(', ') : 'N/A';
-            const syno = anime.synopsis ? anime.synopsis.substring(0, 250) + '...' : 'No synopsis.';
-            const url = anime.url || 'https://myanimelist.net';
-            const imgUrl = anime.images?.jpg?.large_image_url || '';
+            const score = anime.averageScore ? `${anime.averageScore} / 100` : 'N/A';
+            const pop = anime.popularity ? anime.popularity.toLocaleString() : 'N/A';
+            const genres = anime.genres ? anime.genres.join(', ') : 'N/A';
+            
+            // HTML ടാഗുകൾ ഒഴിവാക്കാൻ (AniList ചിലപ്പോൾ HTML തരും)
+            const rawSyno = anime.description ? anime.description.replace(/<[^>]*>?/gm, '') : 'No synopsis available.';
+            const syno = rawSyno.length > 300 ? rawSyno.substring(0, 300) + '...' : rawSyno;
+            
+            const url = anime.siteUrl || 'https://anilist.co';
+            const imgUrl = anime.coverImage?.large || '';
 
-            const premiumMessage = `🎌 *KIRA ANIME INFO* 🎌
-
-📖 *Title* : ${title}
-🌐 *English Title* : ${eng}
-📺 *Episodes* : ${eps}
-⚡ *Status* : ${status}
-⭐ *Score* : ${score} / 10
-🎖️ *Ranked* : #${rank}
-🔥 *Popularity* : #${pop}
-👥 *Members* : ${members}
-🎭 *Genres* : ${genres}
-
-📝 *Synopsis* :
-${syno}
-
-🔗 *MAL Link* : ${url}
-
-━━━━━━━━━━━━━━━━━━━`;
+            const premiumMessage = `🎌 *KIRA ANIME INFO* 🎌\n\n` +
+                `📖 *Title:* ${title}\n` +
+                `🌐 *English:* ${eng}\n` +
+                `📺 *Episodes:* ${eps}\n` +
+                `⚡ *Status:* ${status}\n` +
+                `⭐ *Score:* ${score}\n` +
+                `🔥 *Popularity:* ${pop}\n` +
+                `🎭 *Genres:* ${genres}\n\n` +
+                `📝 *Synopsis:*\n${syno}\n\n` +
+                `🔗 *AniList Link:* ${url}`;
 
             if (imgUrl) {
-                const imgRes = await fetch(imgUrl);
-                const imgBuff = Buffer.from(await imgRes.arrayBuffer());
-                await sock.sendMessage(jid, { image: imgBuff, caption: premiumMessage }, { quoted: msg });
+                await sock.sendMessage(jid, { 
+                    image: { url: imgUrl }, 
+                    caption: premiumMessage 
+                }, { quoted: msg });
             } else {
                 await sock.sendMessage(jid, { text: premiumMessage }, { quoted: msg });
             }
@@ -74,9 +92,11 @@ ${syno}
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
         } catch (error) {
-            console.error('Anime search error:', error);
-            await sock.sendMessage(jid, { text: `*📺 ANIME SEARCH*\n\n❌ Error occurred!` });
+            console.error('Anime search error:', error.message);
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+            await sock.sendMessage(jid, { 
+                text: `❌ *Error occurred while fetching anime info!*\n\n_Reason: ${error.message}_` 
+            }, { quoted: msg });
         }
     }
 };

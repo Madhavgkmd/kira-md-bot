@@ -1,142 +1,68 @@
+const { getSettings, updateSetting } = require('../lib/database');
+
 module.exports = {
     name: "antilink",
     alias: ["alink"],
-    category: "group",
-    description: "Manage Anti-Link",
+    category: "owner",
+    description: "Manage Anti-Link (Owner Only)",
 
     async execute(sock, msg, args, isOwner) {
-
         const jid = msg.key.remoteJid;
 
+        // 🔥 Admin പെർമിഷൻ ഒഴിവാക്കി. വെറും Owner-ന് മാത്രം!
+        if (!isOwner) {
+            return sock.sendMessage(jid, { text: "❌ *Owner only command!*" }, { quoted: msg });
+        }
+
         if (!jid.endsWith("@g.us")) {
-            return sock.sendMessage(
-                jid,
-                {
-                    text: "❌ Group only command!"
-                },
-                { quoted: msg }
-            );
+            return sock.sendMessage(jid, { text: "❌ Group only command!" }, { quoted: msg });
         }
 
-        const sender =
-            msg.key.participant ||
-            msg.participant;
+        const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+        const config = getSettings(botNumber);
 
-        const metadata =
-            await sock.groupMetadata(jid);
+        let antilinkChats = config.antilinkChats || [];
+        let antilinkMode = config.antilinkMode || {};
 
-        const isAdmin =
-            metadata.participants.some(
-                p =>
-                    p.id === sender &&
-                    (
-                        p.admin === "admin" ||
-                        p.admin === "superadmin"
-                    )
-            );
-
-        if (!isAdmin && !isOwner) {
-            return sock.sendMessage(
-                jid,
-                {
-                    text: "❌ Admin only!"
-                },
-                { quoted: msg }
-            );
-        }
-
-        global.antilinkChats =
-            global.antilinkChats || [];
-
-        global.antilinkMode =
-            global.antilinkMode || {};
-
-        const action =
-            (args[0] || "").toLowerCase();
-
-        const mode =
-            (args[1] || "delete")
-                .toLowerCase();
+        const action = (args[0] || "").toLowerCase();
+        const mode = (args[1] || "delete").toLowerCase();
 
         // .antilink on
         if (action === "on") {
-
-            if (
-                !["warn", "delete", "kick"]
-                    .includes(mode)
-            ) {
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-`❌ Invalid mode!
-
-Example:
-.antilink on warn
-.antilink on delete
-.antilink on kick`
-                    },
-                    { quoted: msg }
-                );
+            if (!["warn", "delete", "kick"].includes(mode)) {
+                return sock.sendMessage(jid, {
+                    text: `❌ Invalid mode!\n\nExample:\n.antilink on warn\n.antilink on delete\n.antilink on kick`
+                }, { quoted: msg });
             }
 
-            if (
-                !global.antilinkChats.includes(jid)
-            ) {
-                global.antilinkChats.push(jid);
+            if (!antilinkChats.includes(jid)) {
+                antilinkChats.push(jid);
+                updateSetting(botNumber, "antilinkChats", antilinkChats);
             }
 
-            global.antilinkMode[jid] =
-                mode;
+            antilinkMode[jid] = mode;
+            updateSetting(botNumber, "antilinkMode", antilinkMode);
 
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-`✅ AntiLink Enabled
-
-Mode: ${mode.toUpperCase()}`
-                },
-                { quoted: msg }
-            );
+            return sock.sendMessage(jid, {
+                text: `✅ AntiLink Enabled (For this bot)\n\nMode: ${mode.toUpperCase()}`
+            }, { quoted: msg });
         }
 
         // .antilink off
         if (action === "off") {
+            antilinkChats = antilinkChats.filter(x => x !== jid);
+            updateSetting(botNumber, "antilinkChats", antilinkChats);
 
-            global.antilinkChats =
-                global.antilinkChats.filter(
-                    x => x !== jid
-                );
+            delete antilinkMode[jid];
+            updateSetting(botNumber, "antilinkMode", antilinkMode);
 
-            delete global.antilinkMode[jid];
-
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-"❌ AntiLink Disabled"
-                },
-                { quoted: msg }
-            );
+            return sock.sendMessage(jid, {
+                text: "❌ AntiLink Disabled (For this bot)"
+            }, { quoted: msg });
         }
 
-        // Menu
-        return sock.sendMessage(
-            jid,
-            {
-                text:
-`╭━━━〔 ANTILINK 〕━━━⬣
-
-.antilink on
-.antilink on warn
-.antilink on delete
-.antilink on kick
-.antilink off
-
-╰━━━━━━━━━━━━━━⬣`
-            },
-            { quoted: msg }
-        );
+        return sock.sendMessage(jid, {
+            text: `╭━━━〔 ANTILINK 〕━━━⬣\n\n.antilink on\n.antilink on warn\n.antilink on delete\n.antilink on kick\n.antilink off\n\n╰━━━━━━━━━━━━━━⬣`
+        }, { quoted: msg });
     }
 };

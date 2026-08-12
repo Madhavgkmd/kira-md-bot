@@ -1,8 +1,9 @@
 // plugins/qr.js
 const qrcode = require('qrcode');
-const QrCodeReader = require('qrcode-reader');
-const jimp = require('jimp');
+const axios = require('axios');
+const FormData = require('form-data');
 const fs = require('fs');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
 module.exports = [
     {
@@ -10,66 +11,70 @@ module.exports = [
         alias: ["readqr", "scanqr"],
         category: "tools",
         description: "Generate QR from text or Read QR from replied image",
+        
         async execute(sock, msg, args) {
             const jid = msg.key.remoteJid;
             const text = args.join(" ").trim();
             
-            // കോട്ട് ചെയ്ത മെസ്സേജ് അല്ലെങ്കിൽ ഇമേജ് പരിശോധിക്കുന്നു
             const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
             const imageMessage = quotedMsg?.imageMessage || 
                                  quotedMsg?.ephemeralMessage?.message?.imageMessage ||
                                  msg.message?.imageMessage;
 
-            // ─── 1. IMAGE TO QR TEXT (SCANNER) ───
+            // ─── 1. IMAGE TO QR TEXT (SCANNER VIA API) ───
             if (imageMessage) {
-                let streamPath = null;
+                let filePath = null;
                 try {
                     await sock.sendMessage(jid, { text: "🔍 Scanning QR code..." }, { quoted: msg });
 
-                    // ഇമേജ് ഡൗൺലോഡ് ചെയ്ത് സേവ് ചെയ്യുന്നു
-                    streamPath = await sock.downloadAndSaveMediaMessage(
-                        { message: { imageMessage } }, 
-                        'temp_qr_scan'
-                    );
+                    // 🔥 പുതിയ Baileys സിസ്റ്റം വെച്ച് ഇമേജ് ഡൗൺലോഡ് ചെയ്യുന്നു
+                    const stream = await downloadContentFromMessage(imageMessage, 'image');
+                    let buffer = Buffer.from([]);
+                    for await (const chunk of stream) {
+                        buffer = Buffer.concat([buffer, chunk]);
+                    }
 
-                    const filePath = streamPath.endsWith('.jpeg') ? streamPath : streamPath + '.jpeg';
+                    filePath = `./temp_qr_scan_${Date.now()}.jpeg`;
+                    fs.writeFileSync(filePath, buffer);
 
                     if (!fs.existsSync(filePath)) {
-                        return await sock.sendMessage(jid, { text: "❌ Failed to download the image." }, { quoted: msg });
+                        return await sock.sendMessage(jid, { text: "❌ Failed to save the image." }, { quoted: msg });
                     }
 
-                    // Jimp & QrCodeReader ഉപയോഗിച്ച് റീഡ് ചെയ്യുന്നു (API ഇല്ലാതെ)
-                    const imageBuffer = fs.readFileSync(filePath);
-                    const jimpImage = await jimp.read(imageBuffer);
+                    // API വഴി QR റീഡ് ചെയ്യുന്നു
+                    const form = new FormData();
+                    form.append('file', fs.createReadStream(filePath));
 
-                    const qrValue = await new Promise((resolve, reject) => {
-                        const qr = new QrCodeReader();
-                        qr.callback = (err, value) => {
-                            if (err) resolve(null);
-                            else resolve(value?.result);
-                        };
-                        qr.decode(jimpImage.bitmap);
+                    const res = await axios.post('https://api.qrserver.com/v1/read-qr-code/', form, {
+                        headers: {
+                            ...form.getHeaders()
+                        },
+                        timeout: 15000 
                     });
 
-                    // ഫയൽ ക്ലീൻ ചെയ്യുന്നു
-                    try { fs.unlinkSync(filePath); } catch (err) {}
-                    if (streamPath && fs.existsSync(streamPath)) {
-                        try { fs.unlinkSync(streamPath); } catch (err) {}
+                    const resultData = res.data;
+                    let qrValue = null;
+
+                    if (resultData && resultData[0] && resultData[0].symbol && resultData[0].symbol[0].data) {
+                        qrValue = resultData[0].symbol[0].data;
                     }
 
+                    try { fs.unlinkSync(filePath); } catch (err) {}
+
                     if (!qrValue) {
-                        return await sock.sendMessage(jid, { text: "❌ Could not detect a valid QR code in this image." }, { quoted: msg });
+                        return await sock.sendMessage(jid, { text: "❌ Could not detect a valid QR code. Please try a clearer image." }, { quoted: msg });
                     }
 
                     return await sock.sendMessage(jid, { 
-                        text: `✅ *QR Code Scanned Successfully!*\n\n📌 *Extracted Text/Link:*\n${qrValue}` 
+                        text: `✅ *QR Code Scanned Successfully!*\n\n📌 *Extracted Text:*\n${qrValue}` 
                     }, { quoted: msg });
 
                 } catch (e) {
-                    if (streamPath && fs.existsSync(streamPath)) {
-                        try { fs.unlinkSync(streamPath); } catch (err) {}
+                    if (filePath && fs.existsSync(filePath)) {
+                        try { fs.unlinkSync(filePath); } catch (err) {}
                     }
-                    return await sock.sendMessage(jid, { text: "❌ An error occurred while processing the image." }, { quoted: msg });
+                    console.error("QR Scan Error:", e.message);
+                    return await sock.sendMessage(jid, { text: `❌ An error occurred while scanning. Server might be busy.` }, { quoted: msg });
                 }
             } 
             
@@ -84,14 +89,14 @@ module.exports = [
                     }, { quoted: msg });
                     
                 } catch (e) {
-                    return await sock.sendMessage(jid, { text: "❌ Failed to generate QR code." }, { quoted: msg });
+                    return await sock.sendMessage(jid, { text: `❌ Failed to generate QR code: ${e.message}` }, { quoted: msg });
                 }
             } 
             
             // ─── 3. NO IMAGE AND NO TEXT ERROR ───
             else {
                 return await sock.sendMessage(jid, { 
-                    text: "❌ Provide text to generate a QR code, or reply to an image to read it!\n\nExample: .qr Hello World\nExample: .qr (as reply to image)" 
+                    text: "❌ Provide text to generate a QR code, or reply to an image to read it!\n\n*Example:* .qr Hello World\n*Example:* .qr (as reply to image)" 
                 }, { quoted: msg });
             }
         }
