@@ -1,3 +1,4 @@
+// plugins/antilink.js – KIRA X MD (Owner only)
 const { getSettings, updateSetting } = require('../lib/database');
 
 module.exports = {
@@ -9,13 +10,12 @@ module.exports = {
     async execute(sock, msg, args, isOwner) {
         const jid = msg.key.remoteJid;
 
-        // 🔥 Admin പെർമിഷൻ ഒഴിവാക്കി. വെറും Owner-ന് മാത്രം!
         if (!isOwner) {
             return sock.sendMessage(jid, { text: "❌ *Owner only command!*" }, { quoted: msg });
         }
 
         if (!jid.endsWith("@g.us")) {
-            return sock.sendMessage(jid, { text: "❌ Group only command!" }, { quoted: msg });
+            return sock.sendMessage(jid, { text: "❌ *Group only!*" }, { quoted: msg });
         }
 
         const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
@@ -27,11 +27,10 @@ module.exports = {
         const action = (args[0] || "").toLowerCase();
         const mode = (args[1] || "delete").toLowerCase();
 
-        // .antilink on
         if (action === "on") {
             if (!["warn", "delete", "kick"].includes(mode)) {
                 return sock.sendMessage(jid, {
-                    text: `❌ Invalid mode!\n\nExample:\n.antilink on warn\n.antilink on delete\n.antilink on kick`
+                    text: `❌ Invalid mode!\n\nExamples:\n.antilink on warn\n.antilink on delete\n.antilink on kick`
                 }, { quoted: msg });
             }
 
@@ -44,11 +43,10 @@ module.exports = {
             updateSetting(botNumber, "antilinkMode", antilinkMode);
 
             return sock.sendMessage(jid, {
-                text: `✅ AntiLink Enabled (For this bot)\n\nMode: ${mode.toUpperCase()}`
+                text: `✅ *AntiLink Enabled*\nMode: ${mode.toUpperCase()}\n\nBot must be admin for kick mode.`
             }, { quoted: msg });
         }
 
-        // .antilink off
         if (action === "off") {
             antilinkChats = antilinkChats.filter(x => x !== jid);
             updateSetting(botNumber, "antilinkChats", antilinkChats);
@@ -57,12 +55,13 @@ module.exports = {
             updateSetting(botNumber, "antilinkMode", antilinkMode);
 
             return sock.sendMessage(jid, {
-                text: "❌ AntiLink Disabled (For this bot)"
+                text: "❌ *AntiLink Disabled*"
             }, { quoted: msg });
         }
 
+        const status = antilinkChats.includes(jid) ? `ON (${antilinkMode[jid] || 'delete'})` : "OFF";
         return sock.sendMessage(jid, {
-            text: `╭━━━〔 ANTILINK 〕━━━⬣\n\n.antilink on\n.antilink on warn\n.antilink on delete\n.antilink on kick\n.antilink off\n\n╰━━━━━━━━━━━━━━⬣`
+            text: `╭━━━〔 ANTILINK 〕━━━⬣\n\nStatus: ${status}\n\n.antilink on [warn/delete/kick]\n.antilink off\n\n╰━━━━━━━━━━━━━━⬣`
         }, { quoted: msg });
     }
 };

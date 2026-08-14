@@ -1,92 +1,111 @@
-// plugins/tomp3.js - KIRA X MD (Video to MP3 with Metadata & Reply)
-const { downloadMediaMessage } = require("@whiskeysockets/baileys");
+// plugins/tomp3.js - KIRA X MD (Anti-Hang Video to MP3)
+const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs");
 const path = require("path");
 
-// വിൻഡോസ് ആണെങ്കിൽ ffmpeg പാത്ത് സെറ്റ് ചെയ്യാം, റെയിൽവേയിൽ ആണെങ്കിൽ ഇത് ഓട്ടോമാറ്റിക് ആയി എടുത്തോളും
+// Windows-ൽ ആണെങ്കിൽ ffmpeg എടുക്കാൻ (Railway/Linux ആണെങ്കിൽ ഓട്ടോമാറ്റിക് ആയി എടുത്തോളും)
 const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
-if (fs.existsSync(ffmpegPath)) ffmpeg.setFfmpegPath(ffmpegPath);
+if (fs.existsSync(ffmpegPath)) {
+    ffmpeg.setFfmpegPath(ffmpegPath);
+}
 
 module.exports = {
     name: "tomp3",
-    alias: ["mp3", "video2mp3"],
+    alias: ["mp3", "video2mp3", "toaudio"],
     category: "media",
     description: "Convert replied video to MP3 audio",
-    usage: `${process.env.PREFIX || '.'}tomp3 (reply to a video)`,
+    usage: `${process.env.PREFIX || '.'}mp3 (reply to a video)`,
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
-        // വീഡിയോയ്ക്ക് റിപ്ലൈ ചെയ്തില്ലെങ്കിൽ
-        if (!quoted || !quoted.videoMessage) {
+        // 🔥 Disappearing Message ആണെങ്കിലും കൃത്യമായി വീഡിയോ എടുക്കാൻ
+        const videoMessage = quoted?.videoMessage || 
+                             quoted?.ephemeralMessage?.message?.videoMessage || 
+                             quoted?.viewOnceMessageV2?.message?.videoMessage;
+
+        if (!videoMessage) {
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return;
+            return await sock.sendMessage(jid, { text: "❌ *Please reply to a video!*" }, { quoted: msg });
         }
 
+        console.log("⬇️ [toMP3] Starting download...");
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
         let inputPath, outputPath;
         try {
-            // വീഡിയോ ഡൗൺലോഡ് ചെയ്യുന്നു
-            const videoBuffer = await downloadMediaMessage(
-                { message: quoted },
-                "buffer",
-                {},
-                { logger: console, reuploadRequest: sock.updateMediaMessage }
-            );
-            if (!videoBuffer || videoBuffer.length < 1000) throw new Error("Video download failed");
+            // 🔥 Hang ആവാത്ത പുതിയ ഡൗൺലോഡ് സിസ്റ്റം
+            const stream = await downloadContentFromMessage(videoMessage, 'video');
+            let buffer = Buffer.from([]);
+            for await (const chunk of stream) {
+                buffer = Buffer.concat([buffer, chunk]);
+            }
+            
+            console.log("✅ [toMP3] Video downloaded successfully. Size:", buffer.length);
 
-            // Temp ഫയലുകൾ സെറ്റ് ചെയ്യുന്നു
+            if (buffer.length < 1000) {
+                throw new Error("Downloaded video buffer is empty or corrupted.");
+            }
+
             const tempDir = path.join(__dirname, "../temp");
             if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
             
             inputPath = path.join(tempDir, `video_${Date.now()}.mp4`);
             outputPath = path.join(tempDir, `audio_${Date.now()}.mp3`);
             
-            fs.writeFileSync(inputPath, videoBuffer);
+            fs.writeFileSync(inputPath, buffer);
+            console.log("🔄 [toMP3] Starting FFmpeg conversion...");
 
-            // 🛠️ FFmpeg ഉപയോഗിച്ച് കൺവെർട്ട് ചെയ്യുന്നു + വാട്ടർമാർക്ക് (Metadata) ആഡ് ചെയ്യുന്നു
+            // FFmpeg Conversion
             await new Promise((resolve, reject) => {
                 ffmpeg(inputPath)
                     .toFormat("mp3")
                     .audioBitrate(128)
                     .outputOptions([
-                        '-metadata', 'title=KIRA X MD',  // പാട്ടിന്റെ പേര് (Title)
-                        '-metadata', 'artist=Madhav',    // പാടിയ ആൾ/ഉണ്ടാക്കിയത് (Artist)
-                        '-metadata', 'album=KIRA Bot'    // ആൽബം പേര് 
+                        '-metadata', 'title=KIRA X MD', 
+                        '-metadata', 'artist=Madhav',    
+                        '-metadata', 'album=KIRA Bot'    
                     ])
-                    .on("end", resolve)
-                    .on("error", reject)
+                    .on("end", () => {
+                        console.log("✅ [toMP3] Conversion finished!");
+                        resolve();
+                    })
+                    .on("error", (err) => {
+                        console.error("❌ [toMP3] FFmpeg Error:", err.message);
+                        reject(new Error(`FFmpeg crashed: ${err.message}`));
+                    })
                     .save(outputPath);
             });
 
-            if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size < 1000) throw new Error("Conversion failed");
-
             const audioBuffer = fs.readFileSync(outputPath);
+            console.log("📤 [toMP3] Sending Audio to WhatsApp...");
             
-            // 📩 കൺവെർട്ട് ചെയ്ത ഓഡിയോ റിപ്ലൈ ആയി അയക്കുന്നു
+            // ഓഡിയോ വാട്സാപ്പിലേക്ക് അയക്കുന്നു
             await sock.sendMessage(jid, {
                 audio: audioBuffer,
-                mimetype: "audio/mpeg",
-                ptt: false, // true ആക്കിയാൽ വോയിസ് നോട്ട് ആയി പോകും
+                mimetype: "audio/mp4", // വാട്സാപ്പിൽ നേരിട്ട് പ്ലേ ആവാൻ
+                ptt: false, 
                 fileName: `KIRA_X_MD_${Date.now()}.mp3`,
-            }, { quoted: msg }); // <-- നിന്റെ മെസ്സേജിന് റിപ്ലൈ പോവാൻ ഇതാണ് ചേർത്തത് (quoted: msg)
+            }, { quoted: msg }); 
 
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
+            console.log("🎉 [toMP3] Process completed successfully!");
             
         } catch (err) {
-            console.error("toMP3 Error:", err);
+            console.error("❌ [toMP3] Master Error:", err.message);
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+            await sock.sendMessage(jid, { 
+                text: `❌ *Error processing video!*\n\n_Reason: ${err.message}_` 
+            }, { quoted: msg });
+            
         } finally {
-            // പ്രോസസ്സ് കഴിഞ്ഞാൽ temp ഫയലുകൾ ഡിലീറ്റ് ആക്കാൻ
+            // ടെമ്പ് ഫയലുകൾ ഡിലീറ്റ് ആക്കുന്നു
             try {
                 if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
                 if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-            } catch (e) {
-                console.error("Temp file deletion error:", e);
-            }
+            } catch (e) {}
         }
     }
 };

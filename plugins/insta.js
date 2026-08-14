@@ -54,7 +54,9 @@ module.exports = {
                 }
             });
 
+            // ─── API list (Ninte API aadyam add cheythu) ───
             const apis = [
+                `https://kiraxmd-api.vercel.app/api/insta?url=${encodeURIComponent(url)}`, // First Priority
                 `https://api-aswin-sparky.koyeb.app/api/downloader/igdl?url=${encodeURIComponent(url)}`,
                 `https://jerrycoder.oggyapi.workers.dev/down/insta-v2?url=${encodeURIComponent(url)}`,
                 `https://jerrycoder.oggyapi.workers.dev/down/insta-v1?url=${encodeURIComponent(url)}`,
@@ -66,7 +68,7 @@ module.exports = {
             for (const api of apis) {
                 try {
                     const res = await axios.get(api, {
-                        timeout: 20000
+                        timeout: 40000 // Vercel cold start delay handle cheyyan timeout kooti
                     });
 
                     const d = res.data;
@@ -121,7 +123,7 @@ module.exports = {
             } else if (
                 Array.isArray(data?.result)
             ) {
-                items = data.result;
+                items = data.result; // Ninte API-yude structure ithaayathukond ithu automatic aayi work aakum
             } else if (
                 data?.url ||
                 data?.video

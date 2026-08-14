@@ -5,10 +5,14 @@ module.exports = {
     alias: ["ad"],
     category: "owner",
 
-    async execute(sock, msg, args) {
+    async execute(sock, msg, args, isOwner) { // isOwner ആഡ് ചെയ്തു
         const jid = msg.key.remoteJid;
         
-        // ബോട്ടിന്റെ നമ്പർ എടുത്ത് ഡാറ്റാബേസിൽ നിന്ന് സെറ്റിങ്സ് വിളിക്കുന്നു
+        // 🔥 OWNER CHECK
+        if (!isOwner) {
+            return sock.sendMessage(jid, { text: "❌ *Owner only command!*" }, { quoted: msg });
+        }
+        
         const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
         const config = getSettings(botNumber);
         

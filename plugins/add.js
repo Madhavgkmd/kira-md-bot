@@ -1,4 +1,4 @@
-// plugins/add.js – KIRA X MD (Add user to group)
+// plugins/add.js – KIRA X MD (Smart Add User with Invite Fallback)
 module.exports = {
     name: 'add',
     alias: ['addmember'],
@@ -55,23 +55,65 @@ module.exports = {
             }, { quoted: msg });
         }
 
-        // ─── Prevent adding self (optional) ───
+        // ─── Prevent adding self ───
         if (target === sender) {
             return await sock.sendMessage(jid, { text: "❌ *You cannot add yourself!*" }, { quoted: msg });
         }
 
         // ─── Try to add ───
         try {
-            await sock.groupParticipantsUpdate(jid, [target], "add");
+            const res = await sock.groupParticipantsUpdate(jid, [target], "add");
+            
+            // 🔥 Baileys Error Check (ചിലപ്പോൾ Error Throw ചെയ്യുന്നതിന് പകരം Array ആയിട്ട് 403/463 തരും)
+            let isRestricted = false;
+            if (Array.isArray(res) && res[0]) {
+                if (res[0].status == 403 || res[0].status == 463 || res[0].status == 409) {
+                    isRestricted = true;
+                }
+            }
+
+            if (isRestricted) {
+                throw { data: 463, message: "account_reachout_restricted" }; // Catch ബ്ലോക്കിലേക്ക് വിടുന്നു
+            }
+
             await sock.sendMessage(jid, {
                 text: `✅ *User added successfully!*\n📌 @${target.split('@')[0]}`,
                 mentions: [target]
             }, { quoted: msg });
+
         } catch (err) {
             console.error("Add error:", err);
-            await sock.sendMessage(jid, {
-                text: `❌ *Failed to add user*\n➤ ${err.message || "Make sure I am an admin and the user hasn't turned off group adds."}`
-            }, { quoted: msg });
+            const errString = String(err.message || err);
+            const errData = err.data || err.output?.statusCode;
+            
+            // 🔥 പ്രൈവസി കാരണം ആഡ് ചെയ്യാൻ പറ്റിയില്ലെങ്കിൽ ലിങ്ക് അയക്കുന്നു!
+            if (errData === 463 || errData === 403 || errData === 409 || errString.includes("restricted") || errString.includes("463")) {
+                try {
+                    const code = await sock.groupInviteCode(jid);
+                    const link = `https://chat.whatsapp.com/${code}`;
+                    const groupName = groupMetadata.subject;
+
+                    // DM-ലേക്ക് ലിങ്ക് അയക്കുന്നു
+                    await sock.sendMessage(target, {
+                        text: `👋 *Hello!*\n\nYou were invited to join the group *${groupName}*.\n\nSince your privacy settings prevent me from adding you directly, please use this link to join:\n${link}`
+                    });
+
+                    // ഗ്രൂപ്പിൽ ഇൻഫോം ചെയ്യുന്നു
+                    await sock.sendMessage(jid, {
+                        text: `⚠️ *Privacy Restricted!*\n\nI couldn't add @${target.split('@')[0]} directly due to their privacy settings.\n\n✅ _An invite link has been automatically sent to their DM!_`,
+                        mentions: [target]
+                    }, { quoted: msg });
+
+                } catch (inviteErr) {
+                    await sock.sendMessage(jid, {
+                        text: `❌ *Failed to add user!*\nThey have restricted group adds, and I don't have permission to generate an invite link.`
+                    }, { quoted: msg });
+                }
+            } else {
+                await sock.sendMessage(jid, {
+                    text: `❌ *Failed to add user*\n➤ Make sure I am an admin and the number is valid.`
+                }, { quoted: msg });
+            }
         }
     }
 };

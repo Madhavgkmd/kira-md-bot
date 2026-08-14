@@ -1,4 +1,4 @@
-// plugins/play.js – KIRA X MD (YouTube audio downloader)
+// plugins/play.js – KIRA X MD (YouTube audio downloader – Power Version)
 const ytSearch = require('yt-search');
 const axios = require('axios');
 
@@ -25,18 +25,15 @@ module.exports = {
             console.log("Query:", query);
 
             let url = null;
-
-            // ─── Extract YouTube ID ───
             let youtubeId = null;
 
-            // 1. youtu.be/shortLink
+            // ─── Extract YouTube ID ───
             const shortMatch = query.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
             if (shortMatch) {
                 youtubeId = shortMatch[1];
                 url = `https://youtu.be/${youtubeId}`;
             }
 
-            // 2. youtube.com/watch?v=...
             if (!youtubeId) {
                 const watchMatch = query.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
                 if (watchMatch) {
@@ -45,7 +42,7 @@ module.exports = {
                 }
             }
 
-            // 3. If no direct link, search
+            // If no direct link, search with yt-search
             if (!youtubeId) {
                 console.log("Searching for:", query);
                 const search = await ytSearch(query);
@@ -58,8 +55,11 @@ module.exports = {
 
             await sock.sendMessage(jid, { react: { text: "📥", key: msg.key } });
 
-            // ─── API list ───
+            // ─── API list (YOUR API IS FIRST) ───
             const apis = [
+                // 1️⃣ Your KiraxMD API (audio only)
+                `https://kiraxmd-api.vercel.app/api/play?query=${encodeURIComponent(url)}`,
+                // 2️⃣ Fallback APIs
                 `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(url)}`,
                 `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`,
                 `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`,
@@ -72,13 +72,15 @@ module.exports = {
                 try {
                     console.log("Trying API:", api);
                     const res = await axios.get(api, {
-                        timeout: 15000,
+                        timeout: 40000, // <--- CHANGED FROM 15000 TO 40000 (40 Seconds limit so your API doesn't fail early)
                         validateStatus: () => true
                     });
                     const data = res.data;
                     console.log("API RESPONSE:", JSON.stringify(data, null, 2));
 
+                    // Candidate extraction – handles YOUR response format exactly
                     let candidate =
+                        data?.result?.mp3 ||        // <-- Your API returns { result: { mp3: "..." } }
                         data?.data?.dl ||
                         data?.data?.download ||
                         data?.download ||
@@ -91,23 +93,28 @@ module.exports = {
                     console.log("Candidate URL:", candidate);
 
                     if (!candidate || typeof candidate !== "string" || !candidate.startsWith("http")) {
+                        console.log("No valid URL found, trying next API...");
                         continue;
                     }
 
-                    // Test if URL is accessible
+                    // Test if the audio URL is accessible
                     try {
                         const test = await axios.get(candidate, {
                             responseType: "stream",
-                            timeout: 10000,
+                            timeout: 15000, 
                             maxRedirects: 10,
                             validateStatus: () => true,
                             headers: { "User-Agent": "Mozilla/5.0" }
                         });
                         console.log("URL Status:", test.status);
-                        if (test.status === 200) {
+                        
+                        // 200 OK allengil 206 Partial Content aanenkil success aanu!
+                        if (test.status === 200 || test.status === 206) {
                             audioUrl = candidate;
-                            console.log("Working URL Found:", audioUrl);
+                            console.log("✅ Working URL Found:", audioUrl);
                             break;
+                        } else {
+                            console.log(`URL returned status ${test.status}, skipping...`);
                         }
                     } catch (err) {
                         console.log("URL Test Failed:", err.message);
@@ -124,7 +131,7 @@ module.exports = {
             console.log("Downloading audio...");
             const audioBuffer = await axios.get(audioUrl, {
                 responseType: "arraybuffer",
-                timeout: 30000,
+                timeout: 60000, // <--- CHANGED FROM 30000 TO 60000 (To allow slow downloads to finish)
                 maxRedirects: 10,
                 headers: { "User-Agent": "Mozilla/5.0" }
             });
