@@ -6,20 +6,23 @@ const {
     default: makeWASocket,
     useMultiFileAuthState,
     DisconnectReason,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
 const P = require("pino");
 const { commands, loadPlugins } = require("./lib/plugins");
 const { loadAllSubBots } = require("./lib/subbot");
 const { getSettings } = require("./lib/database");
 
+// 🔥 ഗ്ലോബൽ എറർ ഹാൻഡ്‌ലർ (ഇതുണ്ടെങ്കിൽ എന്ത് എറർ വന്നാലും ബോട്ട് ഓഫ് ആവില്ല)
 process.on('uncaughtException', function (err) {
-    console.error('Caught exception: ', err);
+    console.error('Caught exception: ', err.message);
 });
 process.on('unhandledRejection', function (reason, p) {
     console.error('Unhandled Rejection at: Promise ', p, ' reason: ', reason);
 });
 
+// 🔥 RAM Cleaner (ബോട്ട് ഹാങ് ആവാതിരിക്കാൻ)
 setInterval(() => {
     global.messageStore = {}; 
     global.gameSessions = {};
@@ -63,7 +66,7 @@ let isStarted = false;
 global.startTime = Date.now();
 
 async function startKira() {
-    console.log("🚀 Starting KIRA X MD (Unbreakable Version)...");
+    console.log("🚀 Starting KIRA X MD (Advanced Version)...");
 
     if (fs.existsSync("./session/creds.json") && process.env.BOT_NUMBER) {
         try {
@@ -91,22 +94,43 @@ async function startKira() {
     const sock = makeWASocket({
         version,
         logger: P({ level: "silent" }),
-        auth: state,
+        auth: {
+            creds: state.creds,
+            keys: makeCacheableSignalKeyStore(state.keys, P({ level: "silent" })),
+        },
         printQRInTerminal: false,  
-        browser: ["Mac OS", "Safari", "14.1.2"]
+        browser: ["Ubuntu", "Chrome", "20.0.04"],
+        generateHighQualityLinkPreview: true,
+        getMessage: async (key) => {
+            return global.messageStore[key.id]?.message || { conversation: '' };
+        }
     });
 
-    if (process.env.BOT_NUMBER && !fs.existsSync("./session/creds.json")) {
-        setTimeout(async () => {
-            try {
-                const code = await sock.requestPairingCode(process.env.BOT_NUMBER.replace(/[^0-9]/g, ""));
-                console.log("\n🔑 YOUR PAIRING CODE:", code, "\n");
-            } catch (err) {}
-        }, 3000);
-    }
+    let codeRequested = false;
 
+    // 🔥 Connection & Pairing Code Handler
     sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+
+        // 🔥 QR വരുന്നത് വരെ കാത്തിരുന്ന് കൃത്യമായ നിമിഷത്തിൽ കോഡ് ചോദിക്കുന്നു (No more hangs!)
+        if (qr && !sock.authState.creds.registered && !codeRequested && process.env.BOT_NUMBER) {
+            codeRequested = true;
+            const phone = process.env.BOT_NUMBER.replace(/[^0-9]/g, "");
+            console.log(`\n📲 Requesting Pairing Code for +${phone}...`);
+            
+            setTimeout(async () => {
+                try {
+                    const code = await sock.requestPairingCode(phone);
+                    const formatted = code?.match(/.{1,4}/g)?.join("-") || code;
+                    console.log("\n==========================================");
+                    console.log("   🔑 YOUR PAIRING CODE:", formatted);
+                    console.log("==========================================\n");
+                } catch (err) {
+                    console.error("❌ Pairing Code Error:", err.message);
+                    codeRequested = false;
+                }
+            }, 1000);
+        }
 
         if (connection === "open") {
             console.log("✅ KIRA X MD Connected Successfully!");
@@ -118,7 +142,7 @@ async function startKira() {
                     loadAllSubBots(); 
                     try {
                         await sock.sendMessage(global.ownerNumber, {
-                            text: `╭━━━〔 KIRA-X-MD 〕━━━⬣\n\n✅ Connected Successfully\n🛡️ Status: Anti-Crash Active\n👤 Owner : Madhav\n🤖 Bot : KIRA-X-MD\n╰━━━━━━━━━━━━━━⬣`
+                            text: `╭━━━〔 KIRA-X-MD 〕━━━⬣\n\n✅ Connected Successfully\n🛡️ Status: Active\n👤 Owner : Madhav\n🤖 Bot : KIRA-X-MD\n╰━━━━━━━━━━━━━━⬣`
                         });
                     } catch (err) {}
                 }, 3000);
@@ -158,7 +182,7 @@ async function startKira() {
         } catch (e) {}
     });
 
-    // 🔥 ANTI-DELETE (Chat or DM Selection)
+    // 🔥 ANTI-DELETE
     sock.ev.on("messages.update", async (updates) => {
         try {
             const botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '');
@@ -215,10 +239,18 @@ async function startKira() {
         } catch (err) {}
     });
     
+    // 🔥 MASTER MESSAGE HANDLER
     sock.ev.on("messages.upsert", async ({ messages }) => {
         try {
             const msg = messages[0];
             if (!msg.message) return;
+
+            // 🚀 ANTI-LAG & 96000+ PING FIX 🚀
+            // 30 സെക്കൻഡിൽ കൂടുതൽ പഴക്കമുള്ള പഴയ മെസ്സേജുകൾ ബോട്ട് ഒഴിവാക്കും!
+            if (msg.messageTimestamp) {
+                const currentTime = Math.floor(Date.now() / 1000);
+                if (currentTime - msg.messageTimestamp > 30) return; 
+            }
 
             if (msg.message.reactionMessage || msg.message.protocolMessage || msg.message.ephemeralMessage?.message?.reactionMessage) return;
 
@@ -251,7 +283,6 @@ async function startKira() {
             
             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
 
-            // 🔥 PRIVATE MODE FIX & PRESENCE FIX
             if (!config.botOnline) {
                 try { await sock.sendPresenceUpdate("unavailable", jid); } catch (e) {}
             } else {
@@ -270,14 +301,13 @@ async function startKira() {
                 try { await sock.sendMessage(jid, { react: { text: randomEmoji, key: msg.key } }); } catch (e) {}
             }
             
-     // ── ANTILINK (Main Bot: index.js) ──────────────────────────────
+            // ── ANTILINK ──────────────────────────────
             if (isGroup && config.antilinkChats?.includes(jid) && text && !isOwnerOrSudo) {
                 const linkRegex = /(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
                 if (linkRegex.test(text)) {
                     try {
                         const metadata = await sock.groupMetadata(jid);
                         
-                        // 🔥 കൃത്യമായ റിയൽ പാർട്ടിസിപ്പന്റ് ID കണ്ടെത്തുന്നു
                         const realSender = msg.key.participant || msg.participant || sender;
                         const member = metadata.participants.find(p => p.id === realSender || p.id === sender || p.id.split('@')[0] === sender.split('@')[0]);
                         const isAdmin = member?.admin === "admin" || member?.admin === "superadmin";
@@ -286,7 +316,6 @@ async function startKira() {
                             const antilinkMode = config.antilinkMode || {};
                             const mode = antilinkMode[jid] || "delete";
 
-                            // മെസ്സേജ് ഡിലീറ്റ് ചെയ്യുന്നു
                             try { await sock.sendMessage(jid, { delete: msg.key }); } catch (delErr) {}
 
                             if (mode === "warn") {
@@ -303,22 +332,19 @@ async function startKira() {
 
                                 setTimeout(async () => {
                                     try {
-                                        // കൃത്യമായ JID വെച്ച് കിക്ക് ചെയ്യുന്നു
                                         const kickTarget = member?.id || realSender;
                                         await sock.groupParticipantsUpdate(jid, [kickTarget], "remove");
                                     } catch (kickErr) {
-                                        console.error("Main Bot Kick Error:", kickErr);
                                         await sock.sendMessage(jid, { text: `❌ Kick failed! Check bot admin rights or user hierarchy.` });
                                     }
                                 }, 1500);
                             }
                             return;
                         }
-                    } catch (e) {
-                        console.error("Antilink execution error:", e);
-                    }
+                    } catch (e) {}
                 }
             }
+
             const autoDlEnabled =
                 config.autoDlChats?.includes(jid) ||
                 (config.autoDlAllGroups && isGroup) ||
@@ -354,8 +380,6 @@ async function startKira() {
             }
 
             const commandName = args.shift().toLowerCase();
-
-           
             
             if (commandName === 'me') {
                 if (!isOwnerOrSudo) return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
@@ -380,7 +404,9 @@ async function startKira() {
 
                 try {
                     await command.execute(sock, msg, args, isOwnerOrSudo);
-                } catch (cmdErr) {} finally {
+                } catch (cmdErr) {
+                    console.error(`Error executing ${command.name}:`, cmdErr.message);
+                } finally {
                     if (isSudo) global.ownerNumber = originalOwner; 
                 }
             }

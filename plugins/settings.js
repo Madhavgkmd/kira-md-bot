@@ -46,52 +46,48 @@ module.exports = [
         category: "owner",
         description: "Show bot settings menu",
         async execute(sock, msg, args, isOwner) {
+            if (!isOwner) return; // സൈലന്റ് ആയി ഇരിക്കും (സ്പാം ഒഴിവാക്കാൻ)
             const jid = msg.key.remoteJid;
-            if (!isOwner) return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
-
             const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
             const config = getSettings(botNumber);
             const prefix = process.env.PREFIX || '.';
 
             const menuText = `╭━━━〔 ⚙️ *BOT SETTINGS* 〕━━━⬣
 ┃ 
-┃ 01. *Mode* : ⟨ ${config.botMode.toUpperCase()} ⟩
+┃ 01. *Mode* : ⟨ ${config.botMode?.toUpperCase() || "PUBLIC"} ⟩
 ┃ 02. *Auto DL Groups* : ⟨ ${config.autoDlAllGroups ? "ON" : "OFF"} ⟩
 ┃ 03. *Auto DL DM* : ⟨ ${config.autoDlAllDms ? "ON" : "OFF"} ⟩
-┃ 04. *Anti Delete* : ⟨ ${config.antiDeleteChats.includes(jid) ? "ON" : "OFF"} ⟩
-┃ 05. *Welcome* : ⟨ ${config.welcomeChats.includes(jid) ? "ON" : "OFF"} ⟩
-┃ 06. *Goodbye* : ⟨ ${config.goodbyeChats.includes(jid) ? "ON" : "OFF"} ⟩
-┃ 07. *Anti Link* : ⟨ ${config.antilinkChats.includes(jid) ? "ON" : "OFF"} ⟩
+┃ 04. *Anti Delete* : ⟨ ${(config.antiDeleteChats || []).includes(jid) ? "ON" : "OFF"} ⟩
+┃ 05. *Welcome* : ⟨ ${(config.welcomeChats || []).includes(jid) ? "ON" : "OFF"} ⟩
+┃ 06. *Goodbye* : ⟨ ${(config.goodbyeChats || []).includes(jid) ? "ON" : "OFF"} ⟩
+┃ 07. *Anti Link* : ⟨ ${(config.antilinkChats || []).includes(jid) ? "ON" : "OFF"} ⟩
 ┃ 08. *Call Reject* : ⟨ ${config.callReject ? "ON" : "OFF"} ⟩
 ┃ 09. *Bot Online* : ⟨ ${config.botOnline ? "ON" : "OFF"} ⟩
 ┃ 10. *Auto Read* : ⟨ ${config.autoRead ? "ON" : "OFF"} ⟩
 ┃ 11. *Auto React* : ⟨ ${config.autoReact ? "ON" : "OFF"} ⟩
 ┃ 12. *Auto Reply* : ⟨ ${config.autoReply ? "ON" : "OFF"} ⟩
-┃ 13. *Auto Sticker* : ⟨ ${config.autoSticker ? "ON" : "OFF"} ⟩
-┃ 14. *Without Handler* : ⟨ ${config.withoutHandler ? "ON" : "OFF"} ⟩
-┃ 15. *Auto Status* : ⟨ ${config.autoStatusView ? "ON" : "OFF"} ⟩
+┃ 13. *Without Handler* : ⟨ ${config.withoutHandler ? "ON" : "OFF"} ⟩
+┃ 14. *Auto Status* : ⟨ ${config.autoStatusView ? "ON" : "OFF"} ⟩
 ┃
 ┣ 📌 *How to change?*
-┃ Use command like this:
 ┃ ➾ ${prefix}<name> <on/off>
 ┃
 ┃ *Examples:*
 ┃ ➾ ${prefix}mode private
 ┃ ➾ ${prefix}botonline off
-┃ ➾ ${prefix}statusview on
 ╰━━━━━━━━━━━━━━━━━━━⬣`;
 
             await sock.sendMessage(jid, { text: menuText }, { quoted: msg });
         }
     },
     
-    // 2. MODE
+    // 2. MODE (Fix)
     {
         name: "mode",
         category: "owner",
         description: "Change bot mode",
         async execute(sock, msg, args, isOwner) {
-            if (!isOwner) return;
+            if (!isOwner) return; // സ്പാം ഒഴിവാക്കാൻ
             const jid = msg.key.remoteJid;
             const state = args[0] ? args[0].toLowerCase() : "";
             
@@ -220,16 +216,7 @@ module.exports = [
         }
     },
 
-    // 14. AUTO STICKER
-    {
-        name: "autosticker",
-        alias: ["sticker"],
-        category: "owner",
-        async execute(sock, msg, args, isOwner) {
-            if (!isOwner) return;
-            await toggleSetting(sock, msg, "autoSticker", args[0]?.toLowerCase());
-        }
-    },
+
 
     // 15. WITHOUT HANDLER
     {
@@ -253,3 +240,4 @@ module.exports = [
         }
     }
 ];
+// 🔥 ആ പഴയ കോഡ് ഇവിടെ നിന്നും ഡിലീറ്റ് ആക്കി!

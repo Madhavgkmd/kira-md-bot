@@ -1,9 +1,12 @@
-// plugins/mentionme.js – KIRA X MD (Mention Triggered Audio)
+// plugins/mentionme.js – KIRA X MD
+// Trigger: @all + individual bot mention
+// Direct reply: DISABLED
+
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { exec } = require('child_process');
-const { getSettings, updateSetting } = require('../lib/database'); // 🔥 ഡാറ്റാബേസ് ആഡ് ചെയ്തു!
+const { getSettings, updateSetting } = require('../lib/database');
 
 const AUDIO_LIST = [
     "https://files.catbox.moe/ejvyvx.mp3",
@@ -19,111 +22,324 @@ module.exports = {
     name: 'mentionme',
     alias: ['maudio', 'tagaudio'],
     category: 'owner',
-    description: 'Toggle auto-audio reply when YOU are mentioned',
+    description: 'Toggle audio when bot is mentioned',
     usage: `.mentionme on/off`,
 
     async execute(sock, msg, args, isOwner) {
         const jid = msg.key.remoteJid;
+
         if (!isOwner) {
-            return await sock.sendMessage(jid, { text: '❌ *Only the bot owner can use this!*' }, { quoted: msg });
+            return await sock.sendMessage(
+                jid,
+                { text: '❌ *Owner only command!*' },
+                { quoted: msg }
+            );
         }
 
-        const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+        const botNumber = sock.user.id
+            .split(':')[0]
+            .replace(/[^0-9]/g, '');
+
         const config = getSettings(botNumber);
-        const action = args && args[0] ? args[0].toLowerCase() : '';
+        const action = (args?.[0] || '').toLowerCase();
 
         if (action === 'on') {
-            updateSetting(botNumber, "mentionMe", true);
-            await sock.sendMessage(jid, { text: '✅ *Mention Auto-Reply Activated (For this bot)!*' }, { quoted: msg });
-        } else if (action === 'off') {
-            updateSetting(botNumber, "mentionMe", false);
-            await sock.sendMessage(jid, { text: '❌ *Mention Auto-Reply Deactivated (For this bot)!*' }, { quoted: msg });
-        } else {
-            const status = config.mentionMe ? '🟢 ON' : '🔴 OFF';
-            await sock.sendMessage(jid, {
-                text: `🎵 *MENTION SETTINGS*\n\n➤ .mentionme on\n➤ .mentionme off\n\n*Status:* ${status}`
-            }, { quoted: msg });
+            updateSetting(botNumber, 'mentionMe', true);
+
+            return await sock.sendMessage(
+                jid,
+                { text: '✅ *Mention Audio ON*' },
+                { quoted: msg }
+            );
         }
+
+        if (action === 'off') {
+            updateSetting(botNumber, 'mentionMe', false);
+
+            return await sock.sendMessage(
+                jid,
+                { text: '❌ *Mention Audio OFF*' },
+                { quoted: msg }
+            );
+        }
+
+        const status = config.mentionMe ? '🟢 ON' : '🔴 OFF';
+
+        return await sock.sendMessage(
+            jid,
+            {
+                text:
+`🎤 *MENTION AUDIO*
+
+➤ .mentionme on
+➤ .mentionme off
+
+Status: ${status}
+
+_Triggers only when the bot is personally mentioned or @all is used._`
+            },
+            { quoted: msg }
+        );
     }
 };
 
-async function initMentionMe(sock) {
-    sock.ev.on('messages.upsert', async ({ messages }) => {
-        try {
-            const msg = messages[0];
-            if (!msg.message) return;
 
-            const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
-            const config = getSettings(botNumber);
-            
-            // 🔥 ആ ബോട്ടിന് പ്രത്യേകം ഓൺ ആണോ എന്ന് ചെക്ക് ചെയ്യുന്നു
-            if (!config.mentionMe) return;
+// ─────────────────────────────────────────────
+// 🎤 MENTION AUDIO EVENT
+// ─────────────────────────────────────────────
+
+async function initMentionMe(sock) {
+
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+
+        try {
+            const msg = messages?.[0];
+
+            if (!msg?.message) return;
+            if (msg.key?.fromMe) return;
 
             const jid = msg.key.remoteJid;
-            const isGroup = jid.endsWith('@g.us');
-            if (!isGroup) return;
 
-            const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+            // Group only
+            if (!jid || !jid.endsWith('@g.us')) return;
+
+            const botNumber = sock.user.id
+                .split(':')[0]
+                .replace(/[^0-9]/g, '');
+
+            const config = getSettings(botNumber);
+
+            // Feature OFF
+            if (!config.mentionMe) return;
+
+            // Ignore commands
+            const text =
+                msg.message?.conversation ||
+                msg.message?.extendedTextMessage?.text ||
+                msg.message?.imageMessage?.caption ||
+                msg.message?.videoMessage?.caption ||
+                '';
+
             const prefix = process.env.PREFIX || '.';
-            if (text.trim().startsWith(prefix)) return;
-            if (msg.key.fromMe) return;
 
-            const mentionedJid = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-            const repliedTo = msg.message?.extendedTextMessage?.contextInfo?.participant || '';
+            if (text.trim().startsWith(prefix)) return;
+
+
+            // ─────────────────────────────────────
+            // BOT JID
+            // ─────────────────────────────────────
+
+            const botJid = `${botNumber}@s.whatsapp.net`;
+            const botLid = `${botNumber}@lid`;
+
+
+            // ─────────────────────────────────────
+            // GET MENTIONS
+            // ─────────────────────────────────────
+
+            const contextInfo =
+                msg.message?.extendedTextMessage?.contextInfo ||
+                msg.message?.imageMessage?.contextInfo ||
+                msg.message?.videoMessage?.contextInfo ||
+                msg.message?.documentMessage?.contextInfo ||
+                {};
+
+            const mentionedJid =
+                contextInfo.mentionedJid || [];
+
+
+            // ─────────────────────────────────────
+            // 🔥 INDIVIDUAL BOT MENTION
+            // ─────────────────────────────────────
+
+            let isBotMentioned = false;
+
+            for (const mentioned of mentionedJid) {
+
+                if (
+                    mentioned === botJid ||
+                    mentioned === botLid
+                ) {
+                    isBotMentioned = true;
+                    break;
+                }
+
+                const mentionedNumber = mentioned
+                    .split('@')[0]
+                    .replace(/[^0-9]/g, '');
+
+                if (mentionedNumber === botNumber) {
+                    isBotMentioned = true;
+                    break;
+                }
+            }
+
+
+            // ─────────────────────────────────────
+            // 🔥 @ALL DETECTION
+            // ─────────────────────────────────────
+
             const lowerText = text.toLowerCase();
 
-            const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-            const botJidLid = sock.user.id.split(':')[0] + '@lid';
-            const botPhone = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+            const isAllMention =
+                lowerText.includes('@all') ||
+                lowerText.includes('@everyone');
 
-            let isMentioned = false;
 
-            if (mentionedJid.includes(botJid) || mentionedJid.includes(botJidLid)) isMentioned = true;
-            if (repliedTo === botJid || repliedTo === botJidLid) isMentioned = true;
-            if (lowerText.includes('@all') || lowerText.includes(`@${botPhone}`)) isMentioned = true;
+            // ─────────────────────────────────────
+            // ❌ DIRECT REPLY DISABLED
+            // ─────────────────────────────────────
 
-            const botDisplayName = sock.user.name || sock.user.verifiedName || '';
-            if (botDisplayName && lowerText.includes(botDisplayName.toLowerCase())) isMentioned = true;
+            // contextInfo.participant intentionally NOT checked.
+            // So replying directly to bot will NOT trigger audio.
 
-            if (!isMentioned) return;
 
-            console.log(`🎤 +${botPhone} was mentioned! Sending audio...`);
+            // ─────────────────────────────────────
+            // NOTHING MATCHED
+            // ─────────────────────────────────────
 
-            const randomAudioUrl = AUDIO_LIST[Math.floor(Math.random() * AUDIO_LIST.length)];
-            await sock.sendPresenceUpdate('recording', jid);
+            if (!isBotMentioned && !isAllMention) return;
 
-            const tempMp3 = path.join(process.cwd(), `temp_${Date.now()}.mp3`);
-            const tempOgg = path.join(process.cwd(), `temp_${Date.now()}.ogg`);
+
+            console.log(
+                `🎤 Mention detected for +${botNumber}`
+            );
+
+
+            // ─────────────────────────────────────
+            // RANDOM AUDIO
+            // ─────────────────────────────────────
+
+            const randomAudioUrl =
+                AUDIO_LIST[
+                    Math.floor(Math.random() * AUDIO_LIST.length)
+                ];
+
+
+            await sock.sendPresenceUpdate(
+                'recording',
+                jid
+            );
+
+
+            const timestamp = Date.now();
+
+            const tempMp3 = path.join(
+                process.cwd(),
+                `mention_${timestamp}.mp3`
+            );
+
+            const tempOgg = path.join(
+                process.cwd(),
+                `mention_${timestamp}.ogg`
+            );
+
 
             try {
-                const audioRes = await axios.get(randomAudioUrl, { responseType: 'arraybuffer' });
-                fs.writeFileSync(tempMp3, Buffer.from(audioRes.data));
 
-                const ffmpegCmd = `ffmpeg -i "${tempMp3}" -c:a libopus -b:a 48k -vbr on -compression_level 10 -frame_duration 20 -application voip "${tempOgg}" -y`;
+                // Download MP3
+                const audioRes = await axios.get(
+                    randomAudioUrl,
+                    {
+                        responseType: 'arraybuffer',
+                        timeout: 30000
+                    }
+                );
+
+                fs.writeFileSync(
+                    tempMp3,
+                    Buffer.from(audioRes.data)
+                );
+
+
+                // Convert MP3 → OGG/OPUS
+                const ffmpegCmd =
+                    `ffmpeg -y -i "${tempMp3}" ` +
+                    `-c:a libopus ` +
+                    `-b:a 48k ` +
+                    `-vbr on ` +
+                    `-compression_level 10 ` +
+                    `-frame_duration 20 ` +
+                    `-application voip ` +
+                    `"${tempOgg}"`;
+
+
                 await new Promise((resolve, reject) => {
-                    exec(ffmpegCmd, (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
+
+                    exec(
+                        ffmpegCmd,
+                        (error, stdout, stderr) => {
+
+                            if (error) {
+                                console.error(
+                                    'FFmpeg error:',
+                                    stderr || error.message
+                                );
+
+                                return reject(error);
+                            }
+
+                            resolve();
+                        }
+                    );
+
                 });
 
-                const audioBuffer = fs.readFileSync(tempOgg);
-                await sock.sendMessage(jid, {
-                    audio: audioBuffer,
-                    mimetype: 'audio/ogg; codecs=opus',
-                    ptt: true
-                }, { quoted: msg });
 
-            } catch (err) {
-                console.error('❌ Audio error:', err.message);
+                // Read converted audio
+                const audioBuffer =
+                    fs.readFileSync(tempOgg);
+
+
+                // Send voice note
+                await sock.sendMessage(
+                    jid,
+                    {
+                        audio: audioBuffer,
+                        mimetype: 'audio/ogg; codecs=opus',
+                        ptt: true
+                    },
+                    { quoted: msg }
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    '❌ Mention audio error:',
+                    error.message
+                );
+
             } finally {
+
+                // Cleanup
                 try {
-                    if (fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
-                    if (fs.existsSync(tempOgg)) fs.unlinkSync(tempOgg);
-                } catch (e) {}
+                    if (fs.existsSync(tempMp3)) {
+                        fs.unlinkSync(tempMp3);
+                    }
+
+                    if (fs.existsSync(tempOgg)) {
+                        fs.unlinkSync(tempOgg);
+                    }
+                } catch (cleanupError) {
+                    console.error(
+                        'Cleanup error:',
+                        cleanupError.message
+                    );
+                }
             }
-        } catch (err) {}
+
+
+        } catch (error) {
+
+            console.error(
+                'MentionMe event error:',
+                error.message
+            );
+
+        }
     });
 }
+
 
 module.exports.initMentionMe = initMentionMe;

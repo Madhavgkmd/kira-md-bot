@@ -13,7 +13,7 @@ module.exports = {
 
         if (!query) {
             return await sock.sendMessage(jid, { 
-                text: `❌ *Missing anime name!*\n\n*Example:* .anime Naruto` 
+                text: `❌ *Missing anime name!*\n\n*Example:* .anime Death Note` 
             }, { quoted: msg });
         }
 
@@ -69,7 +69,7 @@ module.exports = {
             const url = anime.siteUrl || 'https://anilist.co';
             const imgUrl = anime.coverImage?.large || '';
 
-            const premiumMessage = `🎌 *KIRA ANIME INFO* 🎌\n\n` +
+            const premiumMessage = `🎌 *ANIME INFO* 🎌\n\n` +
                 `📖 *Title:* ${title}\n` +
                 `🌐 *English:* ${eng}\n` +
                 `📺 *Episodes:* ${eps}\n` +

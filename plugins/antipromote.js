@@ -1,154 +1,434 @@
-// plugins/antipromote.js – KIRA X MD (Anti-Promote & Anti-Demote)
+// plugins/antipromote.js – KIRA X MD
+// Anti-Promote & Anti-Demote
+//
+// IMPORTANT:
+// - Never demotes/promotes the person who performed the action.
+// - Only reverses the affected participant(s).
+// - Includes loop protection.
+// - Settings are stored per bot number.
+
 const { getSettings, updateSetting } = require('../lib/database');
 
-const recentActions = {};
+// Prevent the bot's own reversal from triggering another reversal
+const recentReverts = new Map();
 
-function shouldProcess(jid, action, authorPhone) {
-    const now = Date.now();
-    const key = `${jid}_${action}_${authorPhone}`;
-    if (recentActions[key] && (now - recentActions[key] < 5000)) return false;
-    recentActions[key] = now;
-    return true;
+/* ─────────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────────── */
+
+function getBotNumber(sock) {
+    return sock.user?.id
+        ?.split(':')[0]
+        ?.replace(/[^0-9]/g, '') || '';
 }
 
-function getPhoneFromJid(jid) {
+function normalizeJid(jid) {
+    if (!jid) return '';
+    return jid.includes('@')
+        ? jid
+        : `${jid}@s.whatsapp.net`;
+}
+
+function getPhone(jid) {
     if (!jid) return '';
     return jid.split('@')[0].replace(/[^0-9]/g, '');
 }
 
-function isOwnerJid(authorPhone, botPhone) {
-    const mainOwnerPhone = process.env.OWNER_NUMBER ? process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') : '';
-    return authorPhone === mainOwnerPhone || authorPhone === botPhone;
+/*
+ * Convert a participant object into a usable WhatsApp JID.
+ *
+ * Baileys can sometimes give LID IDs, so phoneNumber is preferred
+ * whenever available.
+ */
+function participantToJid(participant) {
+    if (!participant) return '';
+
+    if (participant.phoneNumber) {
+        return normalizeJid(participant.phoneNumber);
+    }
+
+    if (participant.id && !participant.id.includes('@lid')) {
+        return normalizeJid(participant.id);
+    }
+
+    return '';
 }
 
-function isSudoJid(authorPhone) {
-    const sudoUsers = global.sudoUsers || [];
-    return sudoUsers.some(s => {
-        const sPhone = s.split('@')[0].replace(/[^0-9]/g, '');
-        return sPhone === authorPhone;
+/*
+ * Loop protection.
+ *
+ * Example:
+ *
+ * User promotes B
+ *      ↓
+ * Bot demotes B
+ *      ↓
+ * WhatsApp sends another event
+ *      ↓
+ * We recognize it as our own reversal
+ *      ↓
+ * STOP
+ */
+function markBotAction(jid, action, participants) {
+    const now = Date.now();
+
+    for (const participant of participants) {
+        const key = `${jid}:${action}:${participant}`;
+
+        recentReverts.set(key, now);
+
+        // Cleanup after 10 seconds
+        setTimeout(() => {
+            recentReverts.delete(key);
+        }, 10000);
+    }
+}
+
+function isBotAction(jid, action, participants) {
+    const now = Date.now();
+
+    return participants.every(participant => {
+        const key = `${jid}:${action}:${participant}`;
+        const timestamp = recentReverts.get(key);
+
+        if (!timestamp) return false;
+
+        if (now - timestamp > 10000) {
+            recentReverts.delete(key);
+            return false;
+        }
+
+        return true;
     });
 }
 
-async function getRealAuthor(sock, jid, author) {
-    if (!author || !author.includes('@lid')) return author;
-    try {
-        const meta = await sock.groupMetadata(jid);
-        const p = meta.participants.find(x => x.id === author || x.lid === author);
-        if (p) {
-            if (p.phoneNumber) return p.phoneNumber.includes('@') ? p.phoneNumber : `${p.phoneNumber}@s.whatsapp.net`;
-            if (p.id && !p.id.includes('@lid')) return p.id;
-        }
-    } catch(e) {}
-    return author;
-}
+/* ─────────────────────────────────────────────
+   TOGGLE COMMAND
+───────────────────────────────────────────── */
 
-// ─── COMMAND LOGIC ───
-const handleToggle = async (sock, msg, args, isOwner, isPromote) => {
+async function handleToggle(sock, msg, args, isOwner, type) {
     const jid = msg.key.remoteJid;
-    
-    // 🔥 Admin പെർമിഷൻ ഒഴിവാക്കി. വെറും Owner-ന് മാത്രം!
+
     if (!isOwner) {
-        return await sock.sendMessage(jid, { text: '❌ *Owner only command!*' }, { quoted: msg });
+        return sock.sendMessage(
+            jid,
+            { text: '❌ *Owner only command!*' },
+            { quoted: msg }
+        );
     }
 
-    if (!jid.endsWith('@g.us')) return await sock.sendMessage(jid, { text: '❌ *Group only!*' }, { quoted: msg });
+    if (!jid?.endsWith('@g.us')) {
+        return sock.sendMessage(
+            jid,
+            { text: '❌ *This command only works in groups!*' },
+            { quoted: msg }
+        );
+    }
 
-    const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
+    const botNumber = getBotNumber(sock);
     const config = getSettings(botNumber);
 
-    let targetList = isPromote ? (config.antiPromoteChats || []) : (config.antiDemoteChats || []);
-    const targetName = isPromote ? 'Anti‑Promote' : 'Anti‑Demote';
-    const dbKey = isPromote ? 'antiPromoteChats' : 'antiDemoteChats';
-    const action = (args && args.length) ? args[0].toLowerCase() : '';
+    const isPromote = type === 'promote';
+
+    const dbKey = isPromote
+        ? 'antiPromoteChats'
+        : 'antiDemoteChats';
+
+    const displayName = isPromote
+        ? 'Anti-Promote'
+        : 'Anti-Demote';
+
+    let chats = Array.isArray(config[dbKey])
+        ? [...config[dbKey]]
+        : [];
+
+    const action = String(args?.[0] || '').toLowerCase();
+
+    /* ON */
 
     if (action === 'on') {
-        if (!targetList.includes(jid)) {
-            targetList.push(jid);
-            updateSetting(botNumber, dbKey, targetList);
-            await sock.sendMessage(jid, { text: `✅ *${targetName} enabled* (For this bot)` }, { quoted: msg });
-        } else {
-            await sock.sendMessage(jid, { text: `⚠️ *Already enabled*` }, { quoted: msg });
+        if (chats.includes(jid)) {
+            return sock.sendMessage(
+                jid,
+                {
+                    text: `⚠️ *${displayName} is already enabled.*`
+                },
+                { quoted: msg }
+            );
         }
-    } else if (action === 'off') {
-        const idx = targetList.indexOf(jid);
-        if (idx !== -1) {
-            targetList.splice(idx, 1);
-            updateSetting(botNumber, dbKey, targetList);
-            await sock.sendMessage(jid, { text: `❌ *${targetName} disabled* (For this bot)` }, { quoted: msg });
-        } else {
-            await sock.sendMessage(jid, { text: `⚠️ *Already disabled*` }, { quoted: msg });
-        }
-    } else {
-        const status = targetList.includes(jid) ? '🟢 ENABLED' : '🔴 DISABLED';
-        await sock.sendMessage(jid, { text: `🛡️ *${targetName} Status*\n➤ ${status}\n\nUsage: .${isPromote ? 'antipromote' : 'antidemote'} on/off` }, { quoted: msg });
-    }
-};
 
-module.exports = [
+        chats.push(jid);
+
+        updateSetting(
+            botNumber,
+            dbKey,
+            chats
+        );
+
+        return sock.sendMessage(
+            jid,
+            {
+                text:
+                    `🛡️ *${displayName} Enabled*\n\n` +
+                    `Any ${isPromote ? 'promotion' : 'demotion'} will be automatically reverted.`
+            },
+            { quoted: msg }
+        );
+    }
+
+    /* OFF */
+
+    if (action === 'off') {
+        chats = chats.filter(x => x !== jid);
+
+        updateSetting(
+            botNumber,
+            dbKey,
+            chats
+        );
+
+        return sock.sendMessage(
+            jid,
+            {
+                text: `🔴 *${displayName} Disabled*`
+            },
+            { quoted: msg }
+        );
+    }
+
+    /* STATUS */
+
+    const enabled = chats.includes(jid);
+
+    return sock.sendMessage(
+        jid,
+        {
+            text:
+                `🛡️ *${displayName}*\n\n` +
+                `Status: ${enabled ? '🟢 ON' : '🔴 OFF'}\n\n` +
+                `➤ .${isPromote ? 'antipromote' : 'antidemote'} on\n` +
+                `➤ .${isPromote ? 'antipromote' : 'antidemote'} off`
+        },
+        { quoted: msg }
+    );
+}
+
+/* ─────────────────────────────────────────────
+   COMMANDS
+───────────────────────────────────────────── */
+
+const commands = [
     {
         name: 'antipromote',
         alias: ['ap'],
         category: 'owner',
-        description: 'Toggle anti-promote protection (Owner Only)',
+        description: 'Automatically revert promotions',
         usage: '.antipromote on/off',
-        async execute(sock, msg, args, isOwner) { await handleToggle(sock, msg, args, isOwner, true); }
+
+        async execute(sock, msg, args, isOwner) {
+            return handleToggle(
+                sock,
+                msg,
+                args,
+                isOwner,
+                'promote'
+            );
+        }
     },
+
     {
         name: 'antidemote',
         alias: ['ad'],
         category: 'owner',
-        description: 'Toggle anti-demote protection (Owner Only)',
+        description: 'Automatically revert demotions',
         usage: '.antidemote on/off',
-        async execute(sock, msg, args, isOwner) { await handleToggle(sock, msg, args, isOwner, false); }
+
+        async execute(sock, msg, args, isOwner) {
+            return handleToggle(
+                sock,
+                msg,
+                args,
+                isOwner,
+                'demote'
+            );
+        }
     }
 ];
 
-// ─── EVENT LISTENER ───
+/* ─────────────────────────────────────────────
+   EVENT LISTENER
+───────────────────────────────────────────── */
+
 async function initAntiPromoteListener(sock) {
-    sock.ev.on('group-participants.update', async (update) => {
-        try {
-            const jid = update.id;
-            const action = update.action;
-            const participants = update.participants;
-            const rawAuthor = update.author;
 
-            if (action !== 'promote' && action !== 'demote') return;
+    // Prevent duplicate listeners if this function
+    // accidentally gets called more than once.
+    if (sock.__kiraAntiPromoteListener) {
+        return;
+    }
 
-            const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
-            const config = getSettings(botNumber);
+    sock.__kiraAntiPromoteListener = true;
 
-            const isPromote = (action === 'promote');
-            const isProtected = isPromote ? (config.antiPromoteChats || []).includes(jid) : (config.antiDemoteChats || []).includes(jid);
-            if (!isProtected) return;
-
-            const realAuthor = await getRealAuthor(sock, jid, rawAuthor);
-            const authorPhone = getPhoneFromJid(realAuthor);
-            const botPhone = getPhoneFromJid(sock.user.id);
-            
-            if (authorPhone === botPhone || rawAuthor === sock.user.id) return;
-            if (isOwnerJid(authorPhone, botPhone) || isSudoJid(authorPhone)) return;
-            if (!shouldProcess(jid, action, authorPhone)) return;
-
-            const targetUsers = participants.map(p => {
-                let num = p.phoneNumber || p.id;
-                return num.includes('@') ? num : `${num}@s.whatsapp.net`;
-            }).filter(id => id && !id.includes('@lid')); 
-
-            if (targetUsers.length === 0) return;
-
-            const revertAction = isPromote ? 'demote' : 'promote';
-            await sock.sendMessage(jid, { 
-                text: `🛡️ *Security Alert!*\n@${authorPhone} tried to ${action} users. Reverting...`, 
-                mentions: [realAuthor] 
-            });
+    sock.ev.on(
+        'group-participants.update',
+        async update => {
 
             try {
-                await sock.groupParticipantsUpdate(jid, [realAuthor], 'demote');
-                await sock.groupParticipantsUpdate(jid, targetUsers, revertAction);
-            } catch (e) { console.error(e.message); }
 
-        } catch (err) { console.error(err); }
-    });
+                const jid = update?.id;
+                const action = update?.action;
+                const participants = update?.participants || [];
+
+                if (!jid?.endsWith('@g.us')) return;
+
+                // Only care about these two events
+                if (
+                    action !== 'promote' &&
+                    action !== 'demote'
+                ) {
+                    return;
+                }
+
+                if (!participants.length) return;
+
+                const botNumber = getBotNumber(sock);
+
+                if (!botNumber) return;
+
+                const config = getSettings(botNumber);
+
+                const enabledList =
+                    action === 'promote'
+                        ? (config.antiPromoteChats || [])
+                        : (config.antiDemoteChats || []);
+
+                // Protection isn't enabled for this group
+                if (!enabledList.includes(jid)) {
+                    return;
+                }
+
+                /*
+                 * Convert only the TARGET participants.
+                 *
+                 * update.author is intentionally NEVER used
+                 * for the reversal.
+                 */
+                const targetUsers = participants
+                    .map(participantToJid)
+                    .filter(Boolean);
+
+                if (!targetUsers.length) {
+                    console.log(
+                        '⚠️ AntiPromote: Could not resolve target participant.'
+                    );
+                    return;
+                }
+
+                /*
+                 * Check whether this event was caused by our
+                 * own previous reversal.
+                 */
+                if (
+                    isBotAction(
+                        jid,
+                        action,
+                        targetUsers
+                    )
+                ) {
+                    return;
+                }
+
+                /*
+                 * Determine the opposite action.
+                 *
+                 * promote → demote
+                 * demote  → promote
+                 */
+                const reverseAction =
+                    action === 'promote'
+                        ? 'demote'
+                        : 'promote';
+
+                console.log(
+                    `🛡️ Anti-${action}: Reverting`,
+                    targetUsers
+                );
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * We ONLY send targetUsers here.
+                 *
+                 * We NEVER send update.author.
+                 *
+                 * Therefore:
+                 *
+                 * A promotes B
+                 * → B gets demoted
+                 * → A is untouched
+                 *
+                 * A demotes B
+                 * → B gets promoted
+                 * → A is untouched
+                 */
+                markBotAction(
+                    jid,
+                    reverseAction,
+                    targetUsers
+                );
+
+                try {
+
+                    await sock.groupParticipantsUpdate(
+                        jid,
+                        targetUsers,
+                        reverseAction
+                    );
+
+                    console.log(
+                        `✅ Anti-${action}: Successfully restored ${targetUsers.length} participant(s).`
+                    );
+
+                    /*
+                     * Optional security message.
+                     *
+                     * We don't mention the author because
+                     * the important thing is that the target
+                     * was restored.
+                     */
+                    await sock.sendMessage(jid, {
+                        text:
+                            `🛡️ *Anti-${action === 'promote' ? 'Promote' : 'Demote'}*\n\n` +
+                            `The ${action} action was automatically reverted.`
+                    });
+
+                } catch (revertError) {
+
+                    console.error(
+                        `❌ Anti-${action} revert failed:`,
+                        revertError?.message || revertError
+                    );
+
+                }
+
+            } catch (error) {
+
+                console.error(
+                    '❌ AntiPromote listener error:',
+                    error?.message || error
+                );
+
+            }
+
+        }
+    );
+
+    console.log('🛡️ KIRA Anti-Promote/Anti-Demote listener initialized.');
 }
 
-module.exports.initAntiPromote = initAntiPromoteListener;
+module.exports = [
+    ...commands,
+    {
+        initAntiPromote: initAntiPromoteListener
+    }
+];

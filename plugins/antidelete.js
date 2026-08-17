@@ -1,45 +1,68 @@
-const { getSettings, updateSetting } = require('../lib/database');
+const { getSettings, updateSetting } = require("../lib/database");
 
 module.exports = {
     name: "antidelete",
     alias: ["ad"],
     category: "owner",
 
-    async execute(sock, msg, args, isOwner) { // isOwner ആഡ് ചെയ്തു
+    async execute(sock, msg, args, isOwner) {
         const jid = msg.key.remoteJid;
-        
-        // 🔥 OWNER CHECK
+
         if (!isOwner) {
-            return sock.sendMessage(jid, { text: "❌ *Owner only command!*" }, { quoted: msg });
+            return sock.sendMessage(
+                jid,
+                { text: "❌ Owner only command!" },
+                { quoted: msg }
+            );
         }
-        
-        const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, '');
-        const config = getSettings(botNumber);
-        
-        let antiDeleteChats = config.antiDeleteChats || [];
+
+        const botNumber = sock.user.id
+            .split(":")[0]
+            .replace(/[^0-9]/g, "");
+
+        const settings = getSettings(botNumber);
+
+        let chats = settings.antiDeleteChats || [];
         const action = (args[0] || "").toLowerCase();
 
+        // ON
         if (action === "on") {
-            if (!antiDeleteChats.includes(jid)) {
-                antiDeleteChats.push(jid);
-                updateSetting(botNumber, "antiDeleteChats", antiDeleteChats);
+            if (!chats.includes(jid)) {
+                chats.push(jid);
+                updateSetting(botNumber, "antiDeleteChats", chats);
             }
-            return sock.sendMessage(jid, {
-                text: "✅ AntiDelete Enabled (For this bot)"
-            }, { quoted: msg });
+
+            return sock.sendMessage(
+                jid,
+                { text: "✅ AntiDelete enabled." },
+                { quoted: msg }
+            );
         }
 
+        // OFF
         if (action === "off") {
-            antiDeleteChats = antiDeleteChats.filter(x => x !== jid);
-            updateSetting(botNumber, "antiDeleteChats", antiDeleteChats);
+            chats = chats.filter(id => id !== jid);
 
-            return sock.sendMessage(jid, {
-                text: "❌ AntiDelete Disabled (For this bot)"
-            }, { quoted: msg });
+            updateSetting(botNumber, "antiDeleteChats", chats);
+
+            return sock.sendMessage(
+                jid,
+                { text: "❌ AntiDelete disabled." },
+                { quoted: msg }
+            );
         }
 
-        return sock.sendMessage(jid, {
-            text: `*ANTI DELETE*\n\n.antidelete on\n.antidelete off`
-        }, { quoted: msg });
+        // HELP
+        return sock.sendMessage(
+            jid,
+            {
+                text:
+`🛡️ *AntiDelete*
+
+.antidelete on
+.antidelete off`
+            },
+            { quoted: msg }
+        );
     }
 };

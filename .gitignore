@@ -20,4 +20,7 @@ ffmpeg.exe
 yt-dlp.exe
 jadibot
 group_settings.json
-
+activity_db.json
+banned.json
+chatbot_db.json
+subbot_settings.json

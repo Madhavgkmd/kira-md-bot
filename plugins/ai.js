@@ -4,26 +4,55 @@ module.exports = {
     name: "ai",
     alias: ["kira", "bot", "chat"],
     category: "ai",
-    description: "KIRA AI Assistant (Custom Persona)",
-    usage: `${process.env.PREFIX || '.'}ai <question>`,
+    description: "AI Assistant",
+    usage: `${process.env.PREFIX || "."}ai <question>`,
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
         const question = args.join(" ").trim();
 
         if (!question) {
-            return await sock.sendMessage(jid, { text: "🩸 *KIRA AI*\n\n➤ Example: .ai Tell me about India" }, { quoted: msg });
+            return await sock.sendMessage(
+                jid,
+                {
+                    text: `🤖 *AI Assistant*\n\nAsk me anything!`
+                },
+                { quoted: msg }
+            );
         }
 
         try {
-            await sock.sendMessage(jid, { react: { text: "🧠", key: msg.key } });
-            const thinking = await sock.sendMessage(jid, { text: "🩸 *_KIRA is thinking..._*" }, { quoted: msg });
+            await sock.sendMessage(jid, {
+                react: { text: "🧠", key: msg.key }
+            });
 
-            const prompt = `You are KIRA, an anime-style AI. Creator: Madhav. User: ${question}. Reply in detail.`;
+            const thinking = await sock.sendMessage(
+                jid,
+                {
+                    text: `🤖 _Thinking..._`
+                },
+                { quoted: msg }
+            );
 
-            // Epsilon മാറ്റി, സംസാരശേഷിയുള്ള API-കൾ മാത്രം വെച്ചു
+            const prompt = `
+You are a smart, friendly and natural AI assistant for KIRA X MD.
+
+Your identity:
+- You are an AI assistant created for KIRA X MD.
+- Do not claim to be ChatGPT, Gemini, Google AI or OpenAI.
+- If asked "who are you?", introduce yourself naturally as an AI assistant for KIRA X MD.
+- You do NOT need to mention KIRA in every reply.
+- Speak naturally like a helpful human assistant.
+- Keep answers appropriate to the user's question.
+- Do not add unnecessary headings, question/answer labels, boxes or decorative formatting.
+- Do not repeat the user's question.
+- Answer directly.
+
+User: ${question}
+`;
+
             const apis = [
-                `https://eliteprotech-apis.zone.id/chatgpt?prompt=${encodeURIComponent(question)}`,
+                `https://eliteprotech-apis.zone.id/chatgpt?prompt=${encodeURIComponent(prompt)}`,
                 `https://jerrycoder.oggyapi.workers.dev/ai/gemini?prompt=${encodeURIComponent(prompt)}`,
                 `https://jerrycoder.oggyapi.workers.dev/ai/gpt?q=${encodeURIComponent(prompt)}`
             ];
@@ -32,37 +61,72 @@ module.exports = {
 
             for (const url of apis) {
                 try {
-                    const res = await axios.get(url, { timeout: 20000 });
+                    const res = await axios.get(url, {
+                        timeout: 20000
+                    });
+
                     const data = res.data;
-                    
-                    if (data.reply) { reply = data.reply; break; }
-                    if (data.response) { reply = data.response; break; }
-                    if (data.result) { reply = data.result; break; }
-                    if (data.text) { reply = data.text; break; }
-                    if (data.message) { reply = data.message; break; }
+
+                    if (typeof data === "string") {
+                        reply = data;
+                    } else {
+                        reply =
+                            data?.reply ||
+                            data?.response ||
+                            data?.result ||
+                            data?.text ||
+                            data?.message ||
+                            "";
+                    }
+
+                    if (reply) break;
+
                 } catch (e) {
-                    console.log("API FAILED, TRYING NEXT:", url);
-                    continue; 
+                    console.log("AI API failed, trying next...");
                 }
             }
 
-            if (!reply) throw new Error("No response from any API");
+            if (!reply) {
+                throw new Error("No response from AI APIs");
+            }
 
-            // മറ്റ് AI പേരുകൾ മാറ്റി KIRA എന്നാക്കുന്നു
-            reply = reply.replace(/ChatGPT|Gemini|Google AI|OpenAI/gi, "KIRA");
+            reply = String(reply)
+                .replace(/ChatGPT|Gemini|Google AI|OpenAI/gi, "AI assistant")
+                .trim();
 
-            const message = `╭━━━〔 K I R A • A I 〕━━━⬣\n\n👤 ${question}\n\n┈┈┈┈┈┈┈┈┈┈\n\n${reply}\n\n┈┈┈┈┈┈┈┈┈┈\n🩸 Justice Never Sleeps.\n╰━━━━━━━━━━━━━━⬣`;
+            // Edit "Thinking..." message
+            try {
+                await sock.sendMessage(jid, {
+                    text: reply
+                }, {
+                    edit: thinking.key
+                });
+            } catch {
+                await sock.sendMessage(
+                    jid,
+                    { text: reply },
+                    { quoted: msg }
+                );
+            }
 
-            await sock.sendMessage(jid, { text: message, edit: thinking.key }).catch(async () => {
-                await sock.sendMessage(jid, { text: message }, { quoted: msg });
+            await sock.sendMessage(jid, {
+                react: { text: "✨", key: msg.key }
             });
 
-            await sock.sendMessage(jid, { react: { text: "✨", key: msg.key } });
-
         } catch (err) {
-            console.error("KIRA AI ERROR:", err.message);
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            await sock.sendMessage(jid, { text: "🩸 *KIRA AI*\n\nI couldn't answer, Senpai. Try again later." }, { quoted: msg });
+            console.error("AI ERROR:", err.message);
+
+            await sock.sendMessage(jid, {
+                react: { text: "❌", key: msg.key }
+            });
+
+            await sock.sendMessage(
+                jid,
+                {
+                    text: `🤖 Sorry, I couldn't process that right now.`
+                },
+                { quoted: msg }
+            );
         }
     }
 };
