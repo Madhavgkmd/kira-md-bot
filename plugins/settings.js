@@ -1,589 +1,260 @@
 // plugins/settings.js
-// KIRA X MD - Complete Settings Plugin
+const { getSettings, updateSetting } = require('../lib/database');
 
-const { getSettings, updateSetting } = require("../lib/database");
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
-
-function getBotNumber(sock) {
-    return sock.user?.id
-        ?.split(":")[0]
-        ?.replace(/[^0-9]/g, "") || "";
-}
-
-function getPrefix() {
-    return process.env.PREFIX || ".";
-}
-
-async function send(sock, msg, text) {
-    return sock.sendMessage(
-        msg.key.remoteJid,
-        { text },
-        { quoted: msg }
-    );
-}
-
-function getState(value) {
-    if (!value) return null;
-
-    value = String(value).toLowerCase();
-
-    if (["on", "true", "yes", "enable", "enabled"].includes(value)) {
-        return true;
-    }
-
-    if (["off", "false", "no", "disable", "disabled"].includes(value)) {
-        return false;
-    }
-
-    return null;
-}
-
-// ─────────────────────────────────────────────
-// Toggle Boolean Setting
-// ─────────────────────────────────────────────
-
-async function toggleBoolean(sock, msg, args, settingName, isOwner) {
-
-    if (!isOwner) return;
-
+// കോമൺ ഫംഗ്ഷൻ: ഡാറ്റാബേസ് അപ്ഡേറ്റ് ചെയ്യാനും മെസ്സേജ് അയക്കാനും
+async function toggleSetting(sock, msg, settingName, state, isArray = false) {
     const jid = msg.key.remoteJid;
-    const botNumber = getBotNumber(sock);
-
-    if (!botNumber) {
-        return send(sock, msg, "❌ Bot number not available.");
-    }
-
-    const action = args?.[0]?.toLowerCase();
-
-    if (!action) {
-        const config = getSettings(botNumber);
-
-        const current = config?.[settingName] ? "ON" : "OFF";
-
-        return send(
-            sock,
-            msg,
-            `⚙️ *${settingName.toUpperCase()}*\n\nStatus: *${current}*\n\nUse:\n${getPrefix()}${settingName} on\n${getPrefix()}${settingName} off`
-        );
-    }
-
-    const state = getState(action);
-
-    if (state === null) {
-        return send(
-            sock,
-            msg,
-            `⚠️ Use *on* or *off*.\n\nExample:\n${getPrefix()}${settingName} on`
-        );
-    }
-
-    updateSetting(botNumber, settingName, state);
-
-    return send(
-        sock,
-        msg,
-        `✅ *${settingName.toUpperCase()}* turned *${state ? "ON" : "OFF"}*.`
-    );
-}
-
-// ─────────────────────────────────────────────
-// Per-Chat Toggle
-// ─────────────────────────────────────────────
-
-async function toggleChatSetting(
-    sock,
-    msg,
-    args,
-    settingName,
-    isOwner
-) {
-
-    if (!isOwner) return;
-
-    const jid = msg.key.remoteJid;
-    const botNumber = getBotNumber(sock);
-
-    if (!botNumber) {
-        return send(sock, msg, "❌ Bot number not available.");
-    }
-
-    const action = args?.[0]?.toLowerCase();
-
+    const botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '') || process.env.BOT_NUMBER.replace(/[^0-9]/g, '');
     const config = getSettings(botNumber);
+    const prefix = process.env.PREFIX || '.';
 
-    let chats = Array.isArray(config?.[settingName])
-        ? [...config[settingName]]
-        : [];
-
-    if (!action) {
-
-        const status = chats.includes(jid)
-            ? "ON"
-            : "OFF";
-
-        return send(
-            sock,
-            msg,
-            `⚙️ *${settingName.toUpperCase()}*\n\nStatus: *${status}*\n\nUse:\n${getPrefix()}${settingName} on\n${getPrefix()}${settingName} off`
-        );
+    if (!state) {
+        return await sock.sendMessage(jid, { 
+            text: `⚠️ *Please provide ON or OFF!*\nExample: ${prefix}${msg.message?.conversation?.split(" ")[0].substring(1)} on` 
+        }, { quoted: msg });
     }
 
-    const state = getState(action);
-
-    if (state === null) {
-        return send(
-            sock,
-            msg,
-            `⚠️ Use *on* or *off*.\n\nExample:\n${getPrefix()}${settingName} on`
-        );
+    const isOn = state === "on" || state === "true";
+    const isOff = state === "off" || state === "false";
+    
+    if (!isOn && !isOff) {
+        return await sock.sendMessage(jid, { text: "⚠️ Use 'on' or 'off'" }, { quoted: msg });
     }
 
-    if (state) {
-
-        if (!chats.includes(jid)) {
-            chats.push(jid);
+    if (isArray) {
+        let arr = config[settingName] || [];
+        if (isOn && !arr.includes(jid)) {
+            arr.push(jid);
+        } else if (isOff) {
+            arr = arr.filter(x => x !== jid);
         }
-
+        updateSetting(botNumber, settingName, arr);
     } else {
-
-        chats = chats.filter(id => id !== jid);
+        updateSetting(botNumber, settingName, isOn);
     }
 
-    updateSetting(botNumber, settingName, chats);
-
-    return send(
-        sock,
-        msg,
-        `✅ *${settingName.toUpperCase()}* turned *${state ? "ON" : "OFF"}* for this chat.`
-    );
+    await sock.sendMessage(jid, { 
+        text: `✅ *${settingName.toUpperCase()}* turned *${isOn ? "ON" : "OFF"}*` 
+    }, { quoted: msg });
 }
-
-// ─────────────────────────────────────────────
-// Plugin List
-// ─────────────────────────────────────────────
 
 module.exports = [
-
-    // ═══════════════════════════════════════════
-    // 1. SETTINGS
-    // ═══════════════════════════════════════════
-
+    // 1. SETTINGS MENU
     {
         name: "settings",
         alias: ["set", "config"],
         category: "owner",
-        description: "Show bot settings",
-
+        description: "Show bot settings menu",
         async execute(sock, msg, args, isOwner) {
-
             if (!isOwner) return;
-
             const jid = msg.key.remoteJid;
-            const botNumber = getBotNumber(sock);
-
-            if (!botNumber) {
-                return send(sock, msg, "❌ Bot number not available.");
-            }
-
+            let botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '');
+            if (!botNumber) botNumber = process.env.BOT_NUMBER.replace(/[^0-9]/g, '');
             const config = getSettings(botNumber);
-            const prefix = getPrefix();
+            const prefix = process.env.PREFIX || '.';
 
-            const menu = `⚙️ *KIRA X MD SETTINGS*
+            const menuText = `╭━━━〔 ⚙️ *BOT SETTINGS* 〕━━━⬣
+┃ 
+┃ 01. *Mode* : ⟨ ${config.botMode?.toUpperCase() || global.botMode?.toUpperCase() || "PUBLIC"} ⟩
+┃ 02. *Auto DL Groups* : ⟨ ${config.autoDlAllGroups ? "ON" : "OFF"} ⟩
+┃ 03. *Auto DL DM* : ⟨ ${config.autoDlAllDms ? "ON" : "OFF"} ⟩
+┃ 04. *Anti Delete* : ⟨ ${(config.antiDeleteChats || []).includes(jid) ? "ON" : "OFF"} ⟩
+┃ 05. *Welcome* : ⟨ ${(config.welcomeChats || []).includes(jid) ? "ON" : "OFF"} ⟩
+┃ 06. *Goodbye* : ⟨ ${(config.goodbyeChats || []).includes(jid) ? "ON" : "OFF"} ⟩
+┃ 07. *Anti Link* : ⟨ ${(config.antilinkChats || []).includes(jid) ? "ON" : "OFF"} ⟩
+┃ 08. *Call Reject* : ⟨ ${config.callReject ? "ON" : "OFF"} ⟩
+┃ 09. *Bot Online* : ⟨ ${config.botOnline ? "ON" : "OFF"} ⟩
+┃ 10. *Auto Read* : ⟨ ${config.autoRead ? "ON" : "OFF"} ⟩
+┃ 11. *Auto React* : ⟨ ${config.autoReact ? "ON" : "OFF"} ⟩
+┃ 12. *Auto Reply* : ⟨ ${config.autoReply ? "ON" : "OFF"} ⟩
+┃ 13. *Auto Sticker* : ⟨ ${config.autoSticker ? "ON" : "OFF"} ⟩
+┃ 14. *Without Handler* : ⟨ ${config.withoutHandler ? "ON" : "OFF"} ⟩
+┃ 15. *Auto Status* : ⟨ ${config.autoStatusView ? "ON" : "OFF"} ⟩
+┃
+┣ 📌 *How to change?*
+┃ ➾ ${prefix}<name> <on/off>
+┃
+┃ *Examples:*
+┃ ➾ ${prefix}mode private
+┃ ➾ ${prefix}botonline off
+╰━━━━━━━━━━━━━━━━━━━⬣`;
 
-01. Mode : ${config.botMode?.toUpperCase() || "PUBLIC"}
-02. Bot Online : ${config.botOnline !== false ? "ON" : "OFF"}
-03. Auto DL Groups : ${config.autoDlAllGroups ? "ON" : "OFF"}
-04. Auto DL DM : ${config.autoDlAllDms ? "ON" : "OFF"}
-05. Anti Delete : ${(config.antiDeleteChats || []).includes(jid) ? "ON" : "OFF"}
-06. Welcome : ${(config.welcomeChats || []).includes(jid) ? "ON" : "OFF"}
-07. Goodbye : ${(config.goodbyeChats || []).includes(jid) ? "ON" : "OFF"}
-08. Anti Link : ${(config.antilinkChats || []).includes(jid) ? "ON" : "OFF"}
-09. Call Reject : ${config.callReject ? "ON" : "OFF"}
-10. Auto Read : ${config.autoRead ? "ON" : "OFF"}
-11. Auto React : ${config.autoReact ? "ON" : "OFF"}
-12. Auto Reply : ${config.autoReply ? "ON" : "OFF"}
-13. Without Handler : ${config.withoutHandler ? "ON" : "OFF"}
-14. Auto Status : ${config.autoStatusView ? "ON" : "OFF"}
-
-How to change:
-
-${prefix}mode public
-${prefix}mode private
-
-${prefix}botonline on/off
-${prefix}autodlgroup on/off
-${prefix}autodldm on/off
-${prefix}antidelete on/off
-${prefix}welcome on/off
-${prefix}goodbye on/off
-${prefix}antilink on/off
-${prefix}callreject on/off
-${prefix}autoread on/off
-${prefix}autoreact on/off
-${prefix}autoreply on/off
-${prefix}withouthandler on/off
-${prefix}autostatus on/off`;
-
-            await send(sock, msg, menu);
+            await sock.sendMessage(jid, { text: menuText }, { quoted: msg });
         }
     },
-
-    // ═══════════════════════════════════════════
-    // 2. MODE
-    // ═══════════════════════════════════════════
-
+    
+    // 2. MODE (BULLETPROOF FIX)
     {
         name: "mode",
-        alias: ["botmode"],
         category: "owner",
         description: "Change bot mode",
-
         async execute(sock, msg, args, isOwner) {
-
-            if (!isOwner) return;
-
-            const botNumber = getBotNumber(sock);
-
-            if (!botNumber) {
-                return send(sock, msg, "❌ Bot number not available.");
+            if (!isOwner) return; 
+            const jid = msg.key.remoteJid;
+            const state = args[0] ? args[0].toLowerCase() : "";
+            
+            if (state !== "public" && state !== "private") {
+                return await sock.sendMessage(jid, { text: "⚠️ Use 'public' or 'private'" }, { quoted: msg });
+            }
+            
+            // 🔥 കൃത്യമായി ബോട്ടിന്റെ നമ്പർ എടുക്കുന്നു
+            let botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '');
+            if (!botNumber && process.env.BOT_NUMBER) {
+                botNumber = process.env.BOT_NUMBER.replace(/[^0-9]/g, '');
             }
 
-            const mode = args?.[0]?.toLowerCase();
-
-            if (!mode) {
-                const config = getSettings(botNumber);
-
-                return send(
-                    sock,
-                    msg,
-                    `⚙️ Current mode: *${config.botMode?.toUpperCase() || "PUBLIC"}*\n\nUse:\n${getPrefix()}mode public\n${getPrefix()}mode private`
-                );
-            }
-
-            if (mode !== "public" && mode !== "private") {
-                return send(
-                    sock,
-                    msg,
-                    "⚠️ Use *public* or *private*."
-                );
-            }
-
-            updateSetting(botNumber, "botMode", mode);
-
-            return send(
-                sock,
-                msg,
-                `✅ Bot mode changed to *${mode.toUpperCase()}*.`
-            );
+            updateSetting(botNumber, "botMode", state);
+            global.botMode = state; // Backup Check
+            
+            await sock.sendMessage(jid, { text: `✅ *MODE* changed to *${state.toUpperCase()}*` }, { quoted: msg });
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 3. BOT ONLINE
-    // ═══════════════════════════════════════════
-
-    {
-        name: "botonline",
-        alias: ["online", "btonline"],
-        category: "owner",
-        description: "Turn bot processing on/off",
-
-        async execute(sock, msg, args, isOwner) {
-
-            if (!isOwner) return;
-
-            const botNumber = getBotNumber(sock);
-
-            if (!botNumber) {
-                return send(sock, msg, "❌ Bot number not available.");
-            }
-
-            const action = args?.[0]?.toLowerCase();
-
-            if (!action) {
-
-                const config = getSettings(botNumber);
-
-                return send(
-                    sock,
-                    msg,
-                    `⚙️ Bot Online: *${config.botOnline !== false ? "ON" : "OFF"}*\n\nUse:\n${getPrefix()}botonline on\n${getPrefix()}botonline off`
-                );
-            }
-
-            const state = getState(action);
-
-            if (state === null) {
-                return send(
-                    sock,
-                    msg,
-                    "⚠️ Use *on* or *off*."
-                );
-            }
-
-            updateSetting(botNumber, "botOnline", state);
-
-            return send(
-                sock,
-                msg,
-                `✅ Bot Online turned *${state ? "ON" : "OFF"}*.\n\n${state
-                    ? "🤖 Bot will now process messages."
-                    : "⏸️ Bot is now paused for normal users."}`
-            );
-        }
-    },
-
-    // ═══════════════════════════════════════════
-    // 4. AUTO DL GROUP
-    // ═══════════════════════════════════════════
-
+    // 3. AUTO DL GROUP
     {
         name: "autodlgroup",
-        alias: ["dlgroup", "autodlgroups"],
+        alias: ["dlgroup"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleBoolean(
-                sock,
-                msg,
-                args,
-                "autoDlAllGroups",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoDlAllGroups", args[0]?.toLowerCase());
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 5. AUTO DL DM
-    // ═══════════════════════════════════════════
-
+    // 4. AUTO DL DM
     {
         name: "autodldm",
-        alias: ["dldm", "autodldms"],
+        alias: ["dldm"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleBoolean(
-                sock,
-                msg,
-                args,
-                "autoDlAllDms",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoDlAllDms", args[0]?.toLowerCase());
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 6. ANTI DELETE
-    // ═══════════════════════════════════════════
-
+    // 5. ANTI DELETE
     {
         name: "antidelete",
-        alias: ["antidel"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleChatSetting(
-                sock,
-                msg,
-                args,
-                "antiDeleteChats",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "antiDeleteChats", args[0]?.toLowerCase(), true);
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 7. WELCOME
-    // ═══════════════════════════════════════════
-
+    // 6. WELCOME
     {
         name: "welcome",
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleChatSetting(
-                sock,
-                msg,
-                args,
-                "welcomeChats",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "welcomeChats", args[0]?.toLowerCase(), true);
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 8. GOODBYE
-    // ═══════════════════════════════════════════
-
+    // 7. GOODBYE
     {
         name: "goodbye",
-        alias: ["bye"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleChatSetting(
-                sock,
-                msg,
-                args,
-                "goodbyeChats",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "goodbyeChats", args[0]?.toLowerCase(), true);
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 9. ANTI LINK
-    // ═══════════════════════════════════════════
-
+    // 8. ANTI LINK
     {
         name: "antilink",
-        alias: ["antil"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleChatSetting(
-                sock,
-                msg,
-                args,
-                "antilinkChats",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "antilinkChats", args[0]?.toLowerCase(), true);
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 10. CALL REJECT
-    // ═══════════════════════════════════════════
-
+    // 9. CALL REJECT
     {
         name: "callreject",
-        alias: ["rejectcall"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleBoolean(
-                sock,
-                msg,
-                args,
-                "callReject",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "callReject", args[0]?.toLowerCase());
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 11. AUTO READ
-    // ═══════════════════════════════════════════
+    // 10. BOT ONLINE
+    {
+        name: "botonline",
+        category: "owner",
+        async execute(sock, msg, args, isOwner) {
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "botOnline", args[0]?.toLowerCase());
+        }
+    },
 
+    // 11. AUTO READ
     {
         name: "autoread",
-        alias: ["read", "autoread"],
+        alias: ["read"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleBoolean(
-                sock,
-                msg,
-                args,
-                "autoRead",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoRead", args[0]?.toLowerCase());
         }
     },
 
-    // ═══════════════════════════════════════════
     // 12. AUTO REACT
-    // ═══════════════════════════════════════════
-
     {
         name: "autoreact",
         alias: ["react"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleBoolean(
-                sock,
-                msg,
-                args,
-                "autoReact",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoReact", args[0]?.toLowerCase());
         }
     },
 
-    // ═══════════════════════════════════════════
     // 13. AUTO REPLY
-    // ═══════════════════════════════════════════
-
     {
         name: "autoreply",
         alias: ["reply"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleBoolean(
-                sock,
-                msg,
-                args,
-                "autoReply",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoReply", args[0]?.toLowerCase());
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 14. WITHOUT HANDLER
-    // ═══════════════════════════════════════════
+    // 14. AUTO STICKER
+    {
+        name: "autosticker",
+        alias: ["sticker"],
+        category: "owner",
+        async execute(sock, msg, args, isOwner) {
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoSticker", args[0]?.toLowerCase());
+        }
+    },
 
+    // 15. WITHOUT HANDLER
     {
         name: "withouthandler",
-        alias: ["handler", "without"],
+        alias: ["handler"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleBoolean(
-                sock,
-                msg,
-                args,
-                "withoutHandler",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "withoutHandler", args[0]?.toLowerCase());
         }
     },
 
-    // ═══════════════════════════════════════════
-    // 15. AUTO STATUS
-    // ═══════════════════════════════════════════
-
+    // 16. AUTO STATUS VIEW
     {
         name: "autostatus",
         alias: ["statusview", "status"],
         category: "owner",
-
         async execute(sock, msg, args, isOwner) {
-
-            await toggleBoolean(
-                sock,
-                msg,
-                args,
-                "autoStatusView",
-                isOwner
-            );
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoStatusView", args[0]?.toLowerCase());
         }
     }
 ];
