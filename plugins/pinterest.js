@@ -111,14 +111,14 @@ module.exports = {
                         if (isVideo) {
                             await sock.sendMessage(jid, { 
                                 video: { url: filePath }, 
-                                mimetype: 'video/mp4',
-                                caption: '📌 *KIRA X MD PINTEREST*' 
+                                mimetype: 'video/mp4'
+                                // Caption removed
                             }, { quoted: msg });
                         } else {
                             await sock.sendMessage(jid, { 
                                 image: { url: filePath }, 
-                                mimetype: 'image/jpeg',
-                                caption: '📌 *KIRA X MD PINTEREST*' 
+                                mimetype: 'image/jpeg'
+                                // Caption removed
                             }, { quoted: msg });
                         }
 
@@ -147,11 +147,9 @@ module.exports = {
             // SEARCH LOGIC (USING YOUR VERCEL API)
             // ─────────────────────────────────────
             try {
-                // 🚀 Calling your custom Vercel API
                 const searchUrl = `https://kiraxmd-api.vercel.app/api/pinsearch?q=${encodeURIComponent(input)}`;
                 const res = await axios.get(searchUrl, { timeout: 15000 });
                 
-                // Directly taking the result array from your Vercel JSON
                 const results = res.data.result;
 
                 if (!results || results.length === 0) throw new Error("No pins found for your search.");
@@ -174,8 +172,8 @@ module.exports = {
                             
                             await sock.sendMessage(jid, { 
                                 image: Buffer.from(imgRes.data), 
-                                mimetype: 'image/jpeg',
-                                caption: `📌 *KIRA X MD*` 
+                                mimetype: 'image/jpeg'
+                                // Caption removed
                             });
                             sentCount++;
                         } catch (e) {
