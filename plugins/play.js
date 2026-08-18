@@ -4,7 +4,7 @@ const axios = require('axios');
 
 module.exports = {
     name: 'play',
-    alias: ['song', 'music', 'audio'],
+    alias: ['song', 'yta', 'music', 'audio'],
     category: 'downloader',
     description: 'Search and play YouTube audio or use direct link',
     usage: `${process.env.PREFIX || '.'}play <song name or link>`,

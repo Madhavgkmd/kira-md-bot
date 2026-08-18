@@ -2,7 +2,7 @@ const axios = require("axios");
 
 module.exports = {
     name: "ytv",
-    alias: ["yt", "video", "youtube"],
+    alias: ["yt", "video", "ytmp4" , "youtube"],
     category: "downloader",
     description: "Download YouTube video (MP4)",
     usage: `${process.env.PREFIX || '.'}ytv <url> (or reply to a YouTube link)`,
@@ -39,7 +39,9 @@ module.exports = {
                 react: { text: "⏳", key: msg.key }
             });
 
+            // ─── APIs (NEW API ADDED FIRST) ───
             const apis = [
+                `https://api-aswin-sparky.koyeb.app/api/downloader/ytv?url=${encodeURIComponent(url)}`,
                 `https://jerrycoder.oggyapi.workers.dev/down/ytmp4-v1?url=${encodeURIComponent(url)}`,
                 `https://eliteprotech-apis.zone.id/ytmp4?url=${encodeURIComponent(url)}`
             ];
@@ -50,9 +52,10 @@ module.exports = {
             for (const api of apis) {
                 try {
                     const { data } = await axios.get(api, { timeout: 15000 });
+                    
                     video =
-                        data?.data?.dl ||
                         data?.data?.url ||
+                        data?.data?.dl ||
                         data?.result?.url ||
                         data?.result?.video ||
                         data?.url ||
