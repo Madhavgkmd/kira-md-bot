@@ -67,9 +67,8 @@ module.exports = [
 ┃ 10. *Auto Read* : ⟨ ${config.autoRead ? "ON" : "OFF"} ⟩
 ┃ 11. *Auto React* : ⟨ ${config.autoReact ? "ON" : "OFF"} ⟩
 ┃ 12. *Auto Reply* : ⟨ ${config.autoReply ? "ON" : "OFF"} ⟩
-┃ 13. *Auto Sticker* : ⟨ ${config.autoSticker ? "ON" : "OFF"} ⟩
-┃ 14. *Without Handler* : ⟨ ${config.withoutHandler ? "ON" : "OFF"} ⟩
-┃ 15. *Auto Status* : ⟨ ${config.autoStatusView ? "ON" : "OFF"} ⟩
+┃ 13. *Without Handler* : ⟨ ${config.withoutHandler ? "ON" : "OFF"} ⟩
+┃ 14. *Auto Status* : ⟨ ${config.autoStatusView ? "ON" : "OFF"} ⟩
 ┃
 ┣ 📌 *How to change?*
 ┃ ➾ ${prefix}<name> <on/off>
@@ -225,18 +224,7 @@ module.exports = [
         }
     },
 
-    // 14. AUTO STICKER
-    {
-        name: "autosticker",
-        alias: ["sticker"],
-        category: "owner",
-        async execute(sock, msg, args, isOwner) {
-            if (!isOwner) return;
-            await toggleSetting(sock, msg, "autoSticker", args[0]?.toLowerCase());
-        }
-    },
-
-    // 15. WITHOUT HANDLER
+    // 14. WITHOUT HANDLER
     {
         name: "withouthandler",
         alias: ["handler"],
@@ -247,7 +235,7 @@ module.exports = [
         }
     },
 
-    // 16. AUTO STATUS VIEW
+    // 15. AUTO STATUS VIEW
     {
         name: "autostatus",
         alias: ["statusview", "status"],

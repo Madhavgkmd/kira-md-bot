@@ -26,10 +26,10 @@ module.exports = {
             console.log("Query:", query);
 
             // ─────────────────────────────────────
-            // SEND SEARCHING MESSAGE ONCE
+            // 1. SEND SEARCHING MESSAGE (Bold & Italic)
             // ─────────────────────────────────────
             statusMsg = await sock.sendMessage(jid, {
-                text: `🔍 *Searching :* \`${query}\``
+                text: `🔍 _*Searching*_ : \`${query}\``
             }, { quoted: msg });
 
             let url = null;
@@ -83,19 +83,14 @@ module.exports = {
             }
 
             // ─────────────────────────────────────
-            // SONG DETAILS (CLEAN & AESTHETIC)
+            // 2. SONG DETAILS & DOWNLOADING MSG
             // ─────────────────────────────────────
             const title = songInfo?.title || "Unknown Song";
             const artist = songInfo?.author?.name || "Unknown Artist";
 
-            // Formatting the clean UI string as requested
-            const downloadText = `⬇️ *Downloading :* ${title} | ${artist}`;
-
+            const downloadText = `⬇️ _*Downloading*_ : ${title} | ${artist}`;
             console.log(`Downloading: ${title} by ${artist}`);
 
-            // ─────────────────────────────────────
-            // EDIT SAME MESSAGE TO SHOW DOWNLOADING
-            // ─────────────────────────────────────
             if (statusMsg?.key) {
                 await sock.sendMessage(jid, { 
                     text: downloadText,
@@ -198,11 +193,24 @@ module.exports = {
 
             console.log("✅ Audio sent successfully.");
 
+            // ─────────────────────────────────────
+            // 3. EDIT MESSAGE TO DOWNLOADED
+            // ─────────────────────────────────────
+            const downloadedText = `✅ _*Downloaded*_ : ${title} | ${artist}`;
+            if (statusMsg?.key) {
+                try {
+                    await sock.sendMessage(jid, { 
+                        text: downloadedText,
+                        edit: statusMsg.key 
+                    });
+                } catch {}
+            }
+
         } catch (err) {
             console.error("\n========== PLAY ERROR ==========");
             console.error(err);
 
-            const errorText = `❌ *Download Failed*\n\n⚠️ ${err.message || "An unexpected error occurred."}`;
+            const errorText = `❌ _*Download Failed*_ : \n\n⚠️ ${err.message || "An unexpected error occurred."}`;
 
             // Edit the SAME message to show error
             if (statusMsg?.key) {
