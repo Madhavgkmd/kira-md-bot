@@ -1,49 +1,75 @@
 require("dotenv").config();
+
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+
 const {
     default: makeWASocket,
     useMultiFileAuthState,
     DisconnectReason,
-    fetchLatestBaileysVersion,
+    fetchLatestWaWebVersion,
+    Browsers,
     makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
+
 const P = require("pino");
+
 const { commands, loadPlugins } = require("./lib/plugins");
 const { loadAllSubBots } = require("./lib/subbot");
 const { getSettings } = require("./lib/database");
 
-// 🔥 ഗ്ലോബൽ എറർ ഹാൻഡ്‌ലർ (ഇതുണ്ടെങ്കിൽ എന്ത് എറർ വന്നാലും ബോട്ട് ഓഫ് ആവില്ല)
-process.on('uncaughtException', function (err) {
-    console.error('Caught exception: ', err.message);
+// ============================================================
+// GLOBAL ERROR HANDLERS
+// ============================================================
+
+process.on("uncaughtException", (err) => {
+    console.error("❌ UNCAUGHT EXCEPTION:", err);
 });
-process.on('unhandledRejection', function (reason, p) {
-    console.error('Unhandled Rejection at: Promise ', p, ' reason: ', reason);
+
+process.on("unhandledRejection", (reason) => {
+    console.error("❌ UNHANDLED REJECTION:", reason);
 });
 
-// 🔥 RAM Cleaner (ബോട്ട് ഹാങ് ആവാതിരിക്കാൻ)
-setInterval(() => {
-    global.messageStore = {}; 
-    global.gameSessions = {};
-    console.log("🧹 [RAM CLEANER] Auto Cleared Cache to maintain bot stability!");
-}, 1000 * 60 * 60);
+// ============================================================
+// GLOBALS
+// ============================================================
 
-loadPlugins();
-global.commands = commands;
+global.messageStore = global.messageStore || {};
+global.gameSessions = global.gameSessions || {};
 
-global.antiFakeChats = [];
-global.antiBotChats = [];
-global.messageStore = {};
-global.gameSessions = {};
+global.antiFakeChats = global.antiFakeChats || [];
+global.antiBotChats = global.antiBotChats || [];
 
-const mainOwnerPhone = process.env.OWNER_NUMBER || process.env.BOT_NUMBER || "";
-global.ownerNumber = mainOwnerPhone.replace(/[^0-9]/g, '') + "@s.whatsapp.net";
+global.sleep = (ms) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+global.startTime = Date.now();
+
+const mainOwnerPhone =
+    process.env.OWNER_NUMBER ||
+    process.env.BOT_NUMBER ||
+    "";
+
+global.ownerNumber =
+    mainOwnerPhone.replace(/[^0-9]/g, "") +
+    "@s.whatsapp.net";
 
 global.sudoUsers = process.env.SUDO_NUMBERS
-    ? process.env.SUDO_NUMBERS.split(",").map(x => x.trim().replace(/[^0-9]/g, '') + "@s.whatsapp.net")
+    ? process.env.SUDO_NUMBERS
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .map(
+            (x) =>
+                x.replace(/[^0-9]/g, "") +
+                "@s.whatsapp.net"
+        )
     : [];
-global.sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// ============================================================
+// API GLOBALS
+// ============================================================
 
 global.api = {
     fb: process.env.FB_API,
@@ -51,386 +77,1964 @@ global.api = {
     giphy: process.env.GIPHY_API,
     serp: process.env.SERPAPI_KEY,
     insta: process.env.INSTA_API,
-    geniusKeys: process.env.GENIUS_KEYS ? process.env.GENIUS_KEYS.split(";") : [],
+
+    geniusKeys: process.env.GENIUS_KEYS
+        ? process.env.GENIUS_KEYS.split(";").filter(Boolean)
+        : [],
+
     pinDl: process.env.PIN_DL_API,
     pinSearch: process.env.PIN_SEARCH_API,
     tenor: process.env.TENOR_API_KEY,
+
     ytVideo: process.env.YT_VIDEO_API,
-    ytVideoList: process.env.YT_VIDEO_APIS ? process.env.YT_VIDEO_APIS.split(";") : [],
-    ytmp3List: process.env.YT_MP3_APIS ? process.env.YT_MP3_APIS.split(";") : []
+
+    ytVideoList: process.env.YT_VIDEO_APIS
+        ? process.env.YT_VIDEO_APIS.split(";").filter(Boolean)
+        : [],
+
+    ytmp3List: process.env.YT_MP3_APIS
+        ? process.env.YT_MP3_APIS.split(";").filter(Boolean)
+        : []
 };
 
-http.createServer((req, res) => res.end("KIRA-X-MD is Running 24/7")).listen(process.env.PORT || 3000);
+// ============================================================
+// LOAD PLUGINS
+// ============================================================
 
-let isStarted = false;
-global.startTime = Date.now();
+try {
+    loadPlugins();
+    global.commands = commands;
 
-async function startKira() {
-    console.log("🚀 Starting KIRA X MD (Advanced Version)...");
+    console.log(`✅ Loaded ${commands.length} commands`);
+} catch (err) {
+    console.error("❌ Plugin loading failed:", err);
+    process.exit(1);
+}
 
-    if (fs.existsSync("./session/creds.json") && process.env.BOT_NUMBER) {
-        try {
-            const credsData = JSON.parse(fs.readFileSync("./session/creds.json", "utf-8"));
-            const savedNumber = credsData?.me?.id?.split(':')[0];
-            const envNumber = process.env.BOT_NUMBER.replace(/[^0-9]/g, '');
-            
-            if (savedNumber && savedNumber !== envNumber) {
-                console.log(`⚠️ Number changed from ${savedNumber} to ${envNumber}! Auto-deleting old session...`);
-                fs.rmSync("./session", { recursive: true, force: true });
-            }
-        } catch (e) {}
-    }
+// ============================================================
+// HTTP SERVER
+// ============================================================
 
-    if (process.env.SESSION_ID && !fs.existsSync("./session/creds.json")) {
-        if (!fs.existsSync("./session")) fs.mkdirSync("./session");
-        let sessionId = process.env.SESSION_ID;
-        if (sessionId.startsWith("KIRA~")) sessionId = sessionId.slice(5);
-        fs.writeFileSync("./session/creds.json", Buffer.from(sessionId, "base64").toString());
-    }
+const PORT = process.env.PORT || 3000;
 
-    const { state, saveCreds } = await useMultiFileAuthState("./session");
-    const { version } = await fetchLatestBaileysVersion();
-
-    const sock = makeWASocket({
-        version,
-        logger: P({ level: "silent" }),
-        auth: {
-            creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, P({ level: "silent" })),
-        },
-        printQRInTerminal: false,  
-        browser: ["Ubuntu", "Chrome", "20.0.04"],
-        generateHighQualityLinkPreview: true,
-        getMessage: async (key) => {
-            return global.messageStore[key.id]?.message || { conversation: '' };
-        }
+http.createServer((req, res) => {
+    res.writeHead(200, {
+        "Content-Type": "text/plain"
     });
 
-    let codeRequested = false;
+    res.end("KIRA-X-MD is Running 24/7");
+}).listen(PORT, () => {
+    console.log(`🌐 HTTP Server running on port ${PORT}`);
+});
 
-    // 🔥 Connection & Pairing Code Handler
-    sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect, qr } = update;
+// ============================================================
+// HELPERS
+// ============================================================
 
-        // 🔥 QR വരുന്നത് വരെ കാത്തിരുന്ന് കൃത്യമായ നിമിഷത്തിൽ കോഡ് ചോദിക്കുന്നു (No more hangs!)
-        if (qr && !sock.authState.creds.registered && !codeRequested && process.env.BOT_NUMBER) {
-            codeRequested = true;
-            const phone = process.env.BOT_NUMBER.replace(/[^0-9]/g, "");
-            console.log(`\n📲 Requesting Pairing Code for +${phone}...`);
-            
-            setTimeout(async () => {
-                try {
-                    const code = await sock.requestPairingCode(phone);
-                    const formatted = code?.match(/.{1,4}/g)?.join("-") || code;
-                    console.log("\n==========================================");
-                    console.log("   🔑 YOUR PAIRING CODE:", formatted);
-                    console.log("==========================================\n");
-                } catch (err) {
-                    console.error("❌ Pairing Code Error:", err.message);
-                    codeRequested = false;
-                }
-            }, 1000);
-        }
-
-        if (connection === "open") {
-            console.log("✅ KIRA X MD Connected Successfully!");
-
-            if (!isStarted) {
-                isStarted = true;
-                setTimeout(async () => {
-                    try { await sock.groupAcceptInvite("C3hbXjblNLiF7CoDYJ8lwY"); } catch (e) {}
-                    loadAllSubBots(); 
-                    try {
-                        await sock.sendMessage(global.ownerNumber, {
-                            text: `╭━━━〔 KIRA-X-MD 〕━━━⬣\n\n✅ Connected Successfully\n🛡️ Status: Active\n👤 Owner : Madhav\n🤖 Bot : KIRA-X-MD\n╰━━━━━━━━━━━━━━⬣`
-                        });
-                    } catch (err) {}
-                }, 3000);
-            }
-        }
-
-        if (connection === "close") {
-            const reason = lastDisconnect?.error?.output?.statusCode;
-            const isLoggedOut = reason === DisconnectReason.loggedOut || reason === 401 || reason === 403;
-
-            if (isLoggedOut) {
-                console.log("❌ Logged out from WhatsApp! Auto-deleting session...");
-                try { fs.rmSync("./session", { recursive: true, force: true }); } catch (e) {}
-                process.exit(1);
-            } else {
-                console.log("🔄 Reconnecting silently in 5 seconds...");
-                setTimeout(() => { startKira(); }, 5000);
-            }
-        }
-    });
-
-    sock.ev.on("creds.update", saveCreds);
-
-    sock.ev.on("call", async (calls) => {
-        try {
-            const botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '');
-            if (!botNumber) return;
-            const config = getSettings(botNumber);
-            
-            if (!config.callReject) return;
-            for (const call of calls) {
-                if (call.status === "offer") {
-                    await sock.rejectCall(call.id, call.from);
-                    await sock.sendMessage(call.from, { text: "📵 Calls are not allowed. Please send a message." });
-                }
-            }
-        } catch (e) {}
-    });
-
-    // 🔥 ANTI-DELETE
-    sock.ev.on("messages.update", async (updates) => {
-        try {
-            const botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '');
-            if (!botNumber) return;
-            const config = getSettings(botNumber);
-
-            for (const update of updates) {
-                if (update.update?.message === null || update.update?.messageStubType) {
-                    const key = update.key;
-                    if (!key) continue;
-                    const jid = key.remoteJid;
-                    if (!config.antiDeleteChats?.includes(jid)) continue;
-                    
-                    const deletedMsg = global.messageStore[key.id];
-                    if (!deletedMsg) continue;
-                    const sender = deletedMsg.participant || deletedMsg.key?.participant || deletedMsg.key?.remoteJid;
-                    
-                    const targetJid = config.antiDeleteMode?.[jid] === "chat" ? jid : global.ownerNumber;
-                    
-                    await sock.sendMessage(targetJid, {
-                        text: `🚨 DELETED MESSAGE\n\n👤 USER: @${sender.split('@')[0]}\n💬 CHAT: ${jid}`,
-                        mentions: [sender]
-                    });
-                    await sock.sendMessage(targetJid, { forward: deletedMsg });
-                }
-            }
-        } catch (err) {}
-    });
-
-    sock.ev.on("group-participants.update", async (update) => {
-        try {
-            const botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '');
-            if (!botNumber) return;
-            const config = getSettings(botNumber);
-
-            const jid = update.id;
-            const action = update.action;
-            for (const participant of update.participants) {
-                const user = participant.id || participant;
-                
-                if ((action === "add" || action === "join") && config.welcomeChats?.includes(jid)) {
-                    await sock.sendMessage(jid, { text: `🎉 Welcome @${user.split("@")[0]} to the group!`, mentions: [user] });
-                }
-                if ((action === "remove" || action === "leave") && config.goodbyeChats?.includes(jid)) {
-                    await sock.sendMessage(jid, { text: `👋 Goodbye @${user.split("@")[0]}!`, mentions: [user] });
-                }
-                if ((action === "add" || action === "join") && global.antiFakeChats?.includes(jid)) {
-                    if (!user.startsWith("91")) await sock.groupParticipantsUpdate(jid, [user], "remove");
-                }
-                if ((action === "add" || action === "join") && global.antiBotChats?.includes(jid)) {
-                    if (user.includes(":")) await sock.groupParticipantsUpdate(jid, [user], "remove");
-                }
-            }
-        } catch (err) {}
-    });
-    
-    // 🔥 MASTER MESSAGE HANDLER
-    sock.ev.on("messages.upsert", async ({ messages }) => {
-        try {
-            const msg = messages[0];
-            if (!msg.message) return;
-
-            // 🚀 ANTI-LAG & 96000+ PING FIX 🚀
-            // 30 സെക്കൻഡിൽ കൂടുതൽ പഴക്കമുള്ള പഴയ മെസ്സേജുകൾ ബോട്ട് ഒഴിവാക്കും!
-            if (msg.messageTimestamp) {
-                const currentTime = Math.floor(Date.now() / 1000);
-                if (currentTime - msg.messageTimestamp > 30) return; 
-            }
-
-            if (msg.message.reactionMessage || msg.message.protocolMessage || msg.message.ephemeralMessage?.message?.reactionMessage) return;
-
-            if (msg.key && msg.key.id) {
-                global.messageStore[msg.key.id] = msg;
-            }
-
-            const jid = msg.key.remoteJid;
-            const isGroup = jid.endsWith("@g.us");
-            
-            const botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '');
-            if (!botNumber) return;
-            const config = getSettings(botNumber);
-
-            if (jid === 'status@broadcast') {
-                if (config.autoStatusView) {
-                    try { await sock.readMessages([msg.key]); } catch (e) {}
-                }
-                return;
-            }
-
-            const senderRaw = msg.key.fromMe ? sock.user.id : (msg.participant || jid);
-            const sender = senderRaw.split(":")[0].split("@")[0] + "@s.whatsapp.net";
-            
-            const isOwner = sender === global.ownerNumber || sender === (botNumber + "@s.whatsapp.net");
-            const sudoFile = path.join(process.cwd(), 'sudo.json');
-            const dynamicSudoList = fs.existsSync(sudoFile) ? JSON.parse(fs.readFileSync(sudoFile)) : [];
-            const isSudo = global.sudoUsers?.includes(sender) || dynamicSudoList.includes(sender);
-            const isOwnerOrSudo = isOwner || isSudo;
-            
-            const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
-
-            if (!config.botOnline) {
-                try { await sock.sendPresenceUpdate("unavailable", jid); } catch (e) {}
-            } else {
-                try { await sock.sendPresenceUpdate("available", jid); } catch (e) {}
-            }
-
-            if (config.botMode === "private" && !isOwnerOrSudo) return;
-
-            if (config.autoRead && !msg.key.fromMe) {
-                try { await sock.readMessages([msg.key]); } catch (e) {}
-            }
-
-            if (config.autoReact && !msg.key.fromMe && !msg.key.id.startsWith("BAE5")) {
-                const emojis = ["❤️", "❤︎", "🎀", "😎", "🫣", "🫀", "😭", "🥰", "🍁"];
-                const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-                try { await sock.sendMessage(jid, { react: { text: randomEmoji, key: msg.key } }); } catch (e) {}
-            }
-            
-            // ── ANTILINK ──────────────────────────────
-            if (isGroup && config.antilinkChats?.includes(jid) && text && !isOwnerOrSudo) {
-                const linkRegex = /(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
-                if (linkRegex.test(text)) {
-                    try {
-                        const metadata = await sock.groupMetadata(jid);
-                        
-                        const realSender = msg.key.participant || msg.participant || sender;
-                        const member = metadata.participants.find(p => p.id === realSender || p.id === sender || p.id.split('@')[0] === sender.split('@')[0]);
-                        const isAdmin = member?.admin === "admin" || member?.admin === "superadmin";
-
-                        if (!isAdmin) {
-                            const antilinkMode = config.antilinkMode || {};
-                            const mode = antilinkMode[jid] || "delete";
-
-                            try { await sock.sendMessage(jid, { delete: msg.key }); } catch (delErr) {}
-
-                            if (mode === "warn") {
-                                await sock.sendMessage(jid, {
-                                    text: `⚠️ *@${sender.split('@')[0]}*, WhatsApp group links are strictly forbidden here!`,
-                                    mentions: [sender]
-                                });
-                            } 
-                            else if (mode === "kick") {
-                                await sock.sendMessage(jid, { 
-                                    text: `🚫 *@${sender.split('@')[0]} sent a link! Kicking...*`, 
-                                    mentions: [sender] 
-                                });
-
-                                setTimeout(async () => {
-                                    try {
-                                        const kickTarget = member?.id || realSender;
-                                        await sock.groupParticipantsUpdate(jid, [kickTarget], "remove");
-                                    } catch (kickErr) {
-                                        await sock.sendMessage(jid, { text: `❌ Kick failed! Check bot admin rights or user hierarchy.` });
-                                    }
-                                }, 1500);
-                            }
-                            return;
-                        }
-                    } catch (e) {}
-                }
-            }
-
-            const autoDlEnabled =
-                config.autoDlChats?.includes(jid) ||
-                (config.autoDlAllGroups && isGroup) ||
-                (config.autoDlAllDms && !isGroup);
-
-            if (autoDlEnabled && text && !text.startsWith(process.env.PREFIX || ".")) {
-                try {
-                    await global.sleep(2000);
-                    if (/instagram\.com/i.test(text)) {
-                        const insta = commands.find(c => c.name === "insta");
-                        if (insta) return await insta.execute(sock, msg, [text]);
-                    }
-                    if (/facebook\.com|fb\.watch/i.test(text)) {
-                        const fb = commands.find(c => c.name === "fb");
-                        if (fb) return await fb.execute(sock, msg, [text]);
-                    }
-                    if (/youtube\.com|youtu\.be/i.test(text)) {
-                        const ytv = commands.find(c => c.name === "ytv");
-                        if (ytv) return await ytv.execute(sock, msg, [text]);
-                    }
-                } catch (e) {}
-            }
-
-            const prefix = process.env.PREFIX || ".";
-            let args;
-
-            if (text.startsWith(prefix)) {
-                args = text.slice(prefix.length).trim().split(/ +/);
-            } else if (config.withoutHandler) {
-                args = text.trim().split(/ +/);
-            } else {
-                return;
-            }
-
-            const commandName = args.shift().toLowerCase();
-            
-            if (commandName === 'me') {
-                if (!isOwnerOrSudo) return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
-                return await sock.sendMessage(jid, { 
-                    text: `😎 അതാരാ അവിടെ? അത് ഞാൻ തന്നെ! അല്ലാതെ വേറെയാരാ! 🔥\n\n👉 @${sender.split('@')[0]}`, 
-                    mentions: [sender] 
-                }, { quoted: msg });
-            }
-            
-            const command = commands.find(cmd =>
-                cmd.name === commandName || (cmd.alias && cmd.alias.includes(commandName))
-            );
-
-            if (command) {
-                if (config.botMode === "private" && !isOwnerOrSudo) return;
-                if (command.category === "owner" && !isOwnerOrSudo) {
-                    return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
-                }
-
-                const originalOwner = global.ownerNumber;
-                if (isSudo) global.ownerNumber = sender; 
-
-                try {
-                    await command.execute(sock, msg, args, isOwnerOrSudo);
-                } catch (cmdErr) {
-                    console.error(`Error executing ${command.name}:`, cmdErr.message);
-                } finally {
-                    if (isSudo) global.ownerNumber = originalOwner; 
-                }
-            }
-        } catch (err) {}
-    });
-
-    const antiPromotePlugin = require('./plugins/antipromote.js');
-    if (antiPromotePlugin && antiPromotePlugin.initAntiPromote) {
-        antiPromotePlugin.initAntiPromote(sock);
-    }
-
-    const groupManager = require('./plugins/group_manager.js');
-    if (groupManager && groupManager.initGroupEvents) {
-        groupManager.initGroupEvents(sock);
-    }
-
-    const mentionMePlugin = require('./plugins/mentionme.js');
-    if (mentionMePlugin && mentionMePlugin.initMentionMe) {
-        mentionMePlugin.initMentionMe(sock);
+function getBotNumber(sock) {
+    try {
+        return (
+            sock.user?.id
+                ?.split(":")[0]
+                ?.replace(/[^0-9]/g, "") || ""
+        );
+    } catch {
+        return "";
     }
 }
 
+function normalizeJid(jid) {
+    if (!jid) return "";
+
+    const number = jid
+        .split(":")[0]
+        .split("@")[0]
+        .replace(/[^0-9]/g, "");
+
+    return number
+        ? `${number}@s.whatsapp.net`
+        : jid;
+}
+
+function getSender(msg, sock) {
+    if (msg.key?.fromMe) {
+        return normalizeJid(sock.user?.id);
+    }
+
+    const raw =
+        msg.key?.participant ||
+        msg.participant ||
+        msg.key?.remoteJid;
+
+    return normalizeJid(raw);
+}
+
+function getMessageText(msg) {
+    const message = msg.message || {};
+
+    return (
+        message.conversation ||
+        message.extendedTextMessage?.text ||
+        message.imageMessage?.caption ||
+        message.videoMessage?.caption ||
+        message.documentMessage?.caption ||
+        message.buttonsResponseMessage?.selectedButtonId ||
+        message.listResponseMessage?.singleSelectReply?.selectedRowId ||
+        message.templateButtonReplyMessage?.selectedId ||
+        ""
+    ).trim();
+}
+
+function isGroupJid(jid) {
+    return typeof jid === "string" && jid.endsWith("@g.us");
+}
+
+function isOldMessage(msg) {
+    if (!msg.messageTimestamp) return false;
+
+    const timestamp =
+        Number(msg.messageTimestamp);
+
+    if (!timestamp) return false;
+
+    const now = Math.floor(Date.now() / 1000);
+
+    return now - timestamp > 60;
+}
+
+// ============================================================
+// SUDO CACHE
+// ============================================================
+
+const sudoFile = path.join(
+    process.cwd(),
+    "sudo.json"
+);
+
+let sudoCache = [];
+let sudoMtime = 0;
+
+function loadDynamicSudo() {
+    try {
+        if (!fs.existsSync(sudoFile)) {
+            sudoCache = [];
+            sudoMtime = 0;
+            return;
+        }
+
+        const stat = fs.statSync(sudoFile);
+
+        if (stat.mtimeMs === sudoMtime) {
+            return;
+        }
+
+        const data = JSON.parse(
+            fs.readFileSync(sudoFile, "utf8")
+        );
+
+        sudoCache = Array.isArray(data)
+            ? data
+                .map((x) => normalizeJid(x))
+                .filter(Boolean)
+            : [];
+
+        sudoMtime = stat.mtimeMs;
+    } catch (err) {
+        console.error(
+            "❌ sudo.json error:",
+            err.message
+        );
+
+        sudoCache = [];
+    }
+}
+
+loadDynamicSudo();
+
+function isSudo(sender) {
+    loadDynamicSudo();
+
+    return (
+        global.sudoUsers.includes(sender) ||
+        sudoCache.includes(sender)
+    );
+}
+
+// ============================================================
+// OWNER CHECK
+// ============================================================
+
+function isBotOwner(sender, botNumber, msg) {
+    if (msg.key?.fromMe) return true;
+
+    const owner =
+        normalizeJid(global.ownerNumber);
+
+    const bot =
+        normalizeJid(
+            `${botNumber}@s.whatsapp.net`
+        );
+
+    return (
+        sender === owner ||
+        sender === bot
+    );
+}
+
+// ============================================================
+// COMMAND FINDER
+// ============================================================
+//
+// IMPORTANT:
+// Exact command name gets priority over alias.
+//
+// This fixes:
+//
+// .sticker
+//
+// accidentally matching settings.js:
+//
+// alias: ["sticker"]
+//
+// instead of plugins/sticker.js
+// ============================================================
+
+function findCommand(commandName) {
+    const exact = commands.find(
+        (cmd) =>
+            String(cmd.name).toLowerCase() ===
+            commandName
+    );
+
+    if (exact) return exact;
+
+    return commands.find(
+        (cmd) =>
+            Array.isArray(cmd.alias) &&
+            cmd.alias.some(
+                (alias) =>
+                    String(alias).toLowerCase() ===
+                    commandName
+            )
+    );
+}
+
+// ============================================================
+// MESSAGE STORE CLEANER
+// ============================================================
+
+setInterval(() => {
+    try {
+        const now = Date.now();
+        const MAX_AGE = 60 * 60 * 1000;
+
+        for (const [id, message] of Object.entries(
+            global.messageStore
+        )) {
+            const timestamp =
+                Number(message.messageTimestamp || 0) *
+                1000;
+
+            if (
+                timestamp &&
+                now - timestamp > MAX_AGE
+            ) {
+                delete global.messageStore[id];
+            }
+        }
+    } catch (err) {
+        console.error(
+            "Message store cleanup error:",
+            err.message
+        );
+    }
+}, 10 * 60 * 1000);
+
+// ============================================================
+// SESSION PREPARATION
+// ============================================================
+
+function prepareSession() {
+    const sessionDir = "./session";
+    const credsPath =
+        path.join(sessionDir, "creds.json");
+
+    // Create session directory if missing
+    if (!fs.existsSync(sessionDir)) {
+        fs.mkdirSync(sessionDir, {
+            recursive: true
+        });
+    }
+
+    // --------------------------------------------------------
+    // SESSION_ID
+    // --------------------------------------------------------
+
+    if (
+        process.env.SESSION_ID &&
+        !fs.existsSync(credsPath)
+    ) {
+        try {
+            let sessionId =
+                process.env.SESSION_ID.trim();
+
+            if (sessionId.startsWith("KIRA~")) {
+                sessionId =
+                    sessionId.slice(5);
+            }
+
+            const decoded =
+                Buffer.from(
+                    sessionId,
+                    "base64"
+                ).toString();
+
+            fs.writeFileSync(
+                credsPath,
+                decoded
+            );
+
+            console.log(
+                "✅ SESSION_ID loaded successfully"
+            );
+        } catch (err) {
+            console.error(
+                "❌ SESSION_ID error:",
+                err.message
+            );
+        }
+    }
+
+    // --------------------------------------------------------
+    // CHECK BOT NUMBER
+    // --------------------------------------------------------
+
+    if (
+        fs.existsSync(credsPath) &&
+        process.env.BOT_NUMBER
+    ) {
+        try {
+            const creds =
+                JSON.parse(
+                    fs.readFileSync(
+                        credsPath,
+                        "utf8"
+                    )
+                );
+
+            const savedNumber =
+                creds?.me?.id
+                    ?.split(":")[0]
+                    ?.replace(/[^0-9]/g, "");
+
+            const envNumber =
+                process.env.BOT_NUMBER
+                    .replace(/[^0-9]/g, "");
+
+            if (
+                savedNumber &&
+                envNumber &&
+                savedNumber !== envNumber
+            ) {
+                console.log(
+                    `⚠️ Session number changed: ${savedNumber} -> ${envNumber}`
+                );
+
+                fs.rmSync(
+                    sessionDir,
+                    {
+                        recursive: true,
+                        force: true
+                    }
+                );
+
+                fs.mkdirSync(sessionDir, {
+                    recursive: true
+                });
+
+                if (process.env.SESSION_ID) {
+                    let sessionId =
+                        process.env.SESSION_ID.trim();
+
+                    if (
+                        sessionId.startsWith("KIRA~")
+                    ) {
+                        sessionId =
+                            sessionId.slice(5);
+                    }
+
+                    fs.writeFileSync(
+                        credsPath,
+                        Buffer.from(
+                            sessionId,
+                            "base64"
+                        ).toString()
+                    );
+                }
+            }
+        } catch (err) {
+            console.error(
+                "Session check error:",
+                err.message
+            );
+        }
+    }
+}
+
+// ============================================================
+// MAIN START FUNCTION
+// ============================================================
+
+let starting = false;
+let reconnectTimer = null;
+let activeSocket = null;
+
+async function startKira() {
+    if (starting) {
+        console.log(
+            "⚠️ KIRA is already starting..."
+        );
+        return;
+    }
+
+    starting = true;
+
+    try {
+        console.log(
+            "\n🚀 Starting KIRA X MD..."
+        );
+
+        prepareSession();
+
+        const {
+            state,
+            saveCreds
+        } = await useMultiFileAuthState(
+            "./session"
+        );
+
+        const { version } = await fetchLatestWaWebVersion();
+        
+        console.log(
+            `📡 Baileys version: ${version.join(".")}`
+        );
+
+        const sock = makeWASocket({
+            version,
+
+            logger: P({
+                level: "silent"
+            }),
+
+            auth: {
+                creds: state.creds,
+
+                keys:
+                    makeCacheableSignalKeyStore(
+                        state.keys,
+                        P({
+                            level: "silent"
+                        })
+                    )
+            },
+
+            printQRInTerminal: false,
+
+           browser: Browsers.macOS("Chrome"),
+
+            markOnlineOnConnect: false,
+
+            generateHighQualityLinkPreview: false,
+
+            getMessage: async (key) => {
+                try {
+                    return (
+                        global.messageStore[
+                            key.id
+                        ]?.message || {
+                            conversation: ""
+                        }
+                    );
+                } catch {
+                    return {
+                        conversation: ""
+                    };
+                }
+            }
+        });
+
+        activeSocket = sock;
+        starting = false;
+
+        let pairingRequested = false;
+        let connectionOpened = false;
+
+        // ====================================================
+        // CONNECTION UPDATE
+        // ====================================================
+
+        sock.ev.on(
+            "connection.update",
+            async (update) => {
+                try {
+                    const {
+                        connection,
+                        lastDisconnect,
+                        qr
+                    } = update;
+
+                    // ------------------------------------------------
+                    // PAIRING CODE
+                    // ------------------------------------------------
+
+                    if (
+                        qr &&
+                        !sock.authState.creds.registered &&
+                        process.env.BOT_NUMBER &&
+                        !pairingRequested
+                    ) {
+                        pairingRequested = true;
+
+                        const phone =
+                            process.env.BOT_NUMBER
+                                .replace(
+                                    /[^0-9]/g,
+                                    ""
+                                );
+
+                        console.log(
+                            `📲 Requesting pairing code for +${phone}...`
+                        );
+
+                        try {
+                            const code =
+                                await sock.requestPairingCode(
+                                    phone
+                                );
+
+                            const formatted =
+                                code
+                                    ?.match(
+                                        /.{1,4}/g
+                                    )
+                                    ?.join("-") ||
+                                code;
+
+                            console.log(
+                                "\n===================================="
+                            );
+
+                            console.log(
+                                "🔑 KIRA X MD PAIRING CODE:",
+                                formatted
+                            );
+
+                            console.log(
+                                "====================================\n"
+                            );
+                        } catch (err) {
+                            console.error(
+                                "❌ Pairing code error:",
+                                err.message
+                            );
+
+                            pairingRequested =
+                                false;
+                        }
+                    }
+
+                    // ------------------------------------------------
+                    // CONNECTED
+                    // ------------------------------------------------
+
+                    if (
+                        connection === "open"
+                    ) {
+                        connectionOpened =
+                            true;
+
+                        console.log(
+                            "\n===================================="
+                        );
+
+                        console.log(
+                            "✅ KIRA X MD CONNECTED"
+                        );
+
+                        console.log(
+                            "🤖 Bot:",
+                            getBotNumber(sock)
+                        );
+
+                        console.log(
+                            "====================================\n"
+                        );
+
+                        // Load subbots only once
+                        if (
+                            !global.subBotsLoaded
+                        ) {
+                            global.subBotsLoaded =
+                                true;
+
+                            try {
+                                await loadAllSubBots();
+                                console.log(
+                                    "🤖 Sub-bots loaded"
+                                );
+                            } catch (err) {
+                                console.error(
+                                    "❌ Subbot loading error:",
+                                    err.message
+                                );
+                            }
+                        }
+
+                        // Optional group auto join
+                        if (
+                            !global.kiraStartupDone
+                        ) {
+                            global.kiraStartupDone =
+                                true;
+
+                            setTimeout(
+                                async () => {
+                                    try {
+                                        const invite =
+                                            process.env
+                                                .AUTO_JOIN_GROUP;
+
+                                        if (
+                                            invite
+                                        ) {
+                                            await sock.groupAcceptInvite(
+                                                invite
+                                            );
+
+                                            console.log(
+                                                "✅ Auto-joined group"
+                                            );
+                                        }
+                                    } catch (err) {
+                                        // Silent
+                                    }
+
+                                    // Startup owner notification
+                                    try {
+                                        const owner =
+                                            normalizeJid(
+                                                global.ownerNumber
+                                            );
+
+                                        if (
+                                            owner
+                                        ) {
+                                            await sock.sendMessage(
+                                                owner,
+                                                {
+                                                    text:
+                                                        `╭━━━〔 KIRA-X-MD 〕━━━⬣\n\n` +
+                                                        `✅ *Connected Successfully*\n` +
+                                                        `🛡️ *Status:* Active\n` +
+                                                        `🤖 *Bot:* KIRA-X-MD\n\n` +
+                                                        `╰━━━━━━━━━━━━━━⬣`
+                                                }
+                                            );
+                                        }
+                                    } catch (err) {}
+                                },
+                                2000
+                            );
+                        }
+                    }
+
+                    // ------------------------------------------------
+                    // CONNECTION CLOSED
+                    // ------------------------------------------------
+
+                    if (
+                        connection === "close"
+                    ) {
+                        const statusCode =
+                            lastDisconnect
+                                ?.error
+                                ?.output
+                                ?.statusCode;
+
+                        const loggedOut =
+                            statusCode ===
+                                DisconnectReason.loggedOut ||
+                            statusCode === 401 ||
+                            statusCode === 403;
+
+                        console.log(
+                            "⚠️ Connection closed:",
+                            statusCode
+                        );
+
+                        if (
+                            loggedOut
+                        ) {
+                            console.log(
+                                "❌ WhatsApp session logged out."
+                            );
+
+                            try {
+                                fs.rmSync(
+                                    "./session",
+                                    {
+                                        recursive: true,
+                                        force: true
+                                    }
+                                );
+                            } catch {}
+
+                            process.exit(1);
+                        }
+
+                        if (
+                            reconnectTimer
+                        ) {
+                            return;
+                        }
+
+                        console.log(
+                            "🔄 Reconnecting in 3 seconds..."
+                        );
+
+                        reconnectTimer =
+                            setTimeout(
+                                async () => {
+                                    reconnectTimer =
+                                        null;
+
+                                    try {
+                                        await startKira();
+                                    } catch (err) {
+                                        console.error(
+                                            "❌ Reconnect error:",
+                                            err.message
+                                        );
+                                    }
+                                },
+                                3000
+                            );
+                    }
+                } catch (err) {
+                    console.error(
+                        "Connection update error:",
+                        err
+                    );
+                }
+            }
+        );
+
+        // ====================================================
+        // SAVE CREDS
+        // ====================================================
+
+        sock.ev.on(
+            "creds.update",
+            saveCreds
+        );
+
+        // ====================================================
+        // CALL REJECT
+        // ====================================================
+
+        sock.ev.on(
+            "call",
+            async (calls) => {
+                try {
+                    const botNumber =
+                        getBotNumber(sock);
+
+                    if (!botNumber)
+                        return;
+
+                    const config =
+                        getSettings(
+                            botNumber
+                        );
+
+                    if (
+                        !config.callReject
+                    )
+                        return;
+
+                    for (
+                        const call of calls
+                    ) {
+                        if (
+                            call.status ===
+                            "offer"
+                        ) {
+                            try {
+                                await sock.rejectCall(
+                                    call.id,
+                                    call.from
+                                );
+                            } catch {}
+
+                            try {
+                                await sock.sendMessage(
+                                    call.from,
+                                    {
+                                        text:
+                                            "📵 *Calls are not allowed.*\nPlease send a message instead."
+                                    }
+                                );
+                            } catch {}
+                        }
+                    }
+                } catch (err) {
+                    console.error(
+                        "Call handler:",
+                        err.message
+                    );
+                }
+            }
+        );
+
+        // ====================================================
+        // ANTI DELETE
+        // ====================================================
+
+        const processedDeletes =
+            new Set();
+
+        async function handleDelete(
+            key
+        ) {
+            try {
+                if (!key?.id)
+                    return;
+
+                const deleteId =
+                    `${key.remoteJid}:${key.id}`;
+
+                if (
+                    processedDeletes.has(
+                        deleteId
+                    )
+                ) {
+                    return;
+                }
+
+                processedDeletes.add(
+                    deleteId
+                );
+
+                setTimeout(
+                    () => {
+                        processedDeletes.delete(
+                            deleteId
+                        );
+                    },
+                    30000
+                );
+
+                const botNumber =
+                    getBotNumber(sock);
+
+                if (!botNumber)
+                    return;
+
+                const config =
+                    getSettings(
+                        botNumber
+                    );
+
+                const jid =
+                    key.remoteJid;
+
+                if (
+                    !config
+                        .antiDeleteChats
+                        ?.includes(jid)
+                ) {
+                    return;
+                }
+
+                const deleted =
+                    global.messageStore[
+                        key.id
+                    ];
+
+                if (!deleted)
+                    return;
+
+                const sender =
+                    normalizeJid(
+                        deleted.participant ||
+                        deleted.key?.participant ||
+                        deleted.key?.remoteJid
+                    );
+
+                const targetJid =
+                    config
+                        .antiDeleteMode
+                        ?. [jid] ===
+                    "chat"
+                        ? jid
+                        : normalizeJid(
+                            global.ownerNumber
+                        );
+
+                if (!targetJid)
+                    return;
+
+                await sock.sendMessage(
+                    targetJid,
+                    {
+                        text:
+                            `🚨 *DELETED MESSAGE*\n\n` +
+                            `👤 *User:* @${sender.split("@")[0]}\n` +
+                            `💬 *Chat:* ${jid}`,
+                        mentions: sender
+                            ? [sender]
+                            : []
+                    }
+                );
+
+                try {
+                    await sock.sendMessage(
+                        targetJid,
+                        {
+                            forward: deleted
+                        }
+                    );
+                } catch (err) {
+                    console.error(
+                        "AntiDelete forward error:",
+                        err.message
+                    );
+                }
+            } catch (err) {
+                console.error(
+                    "AntiDelete error:",
+                    err.message
+                );
+            }
+        }
+
+        // Newer Baileys delete event
+        sock.ev.on(
+            "messages.delete",
+            async ({
+                keys
+            }) => {
+                if (!Array.isArray(keys))
+                    return;
+
+                for (
+                    const key of keys
+                ) {
+                    await handleDelete(
+                        key
+                    );
+                }
+            }
+        );
+
+        // Compatibility with existing event style
+        sock.ev.on(
+            "messages.update",
+            async (updates) => {
+                try {
+                    for (
+                        const update of updates
+                    ) {
+                        if (
+                            update.update
+                                ?.message ===
+                                null
+                        ) {
+                            await handleDelete(
+                                update.key
+                            );
+                        }
+                    }
+                } catch (err) {
+                    console.error(
+                        "messages.update error:",
+                        err.message
+                    );
+                }
+            }
+        );
+
+        // ====================================================
+        // GROUP EVENTS
+        // ====================================================
+
+        sock.ev.on(
+            "group-participants.update",
+            async (update) => {
+                try {
+                    const botNumber =
+                        getBotNumber(sock);
+
+                    if (!botNumber)
+                        return;
+
+                    const config =
+                        getSettings(
+                            botNumber
+                        );
+
+                    const jid =
+                        update.id;
+
+                    const action =
+                        update.action;
+
+                    if (
+                        !Array.isArray(
+                            update.participants
+                        )
+                    ) {
+                        return;
+                    }
+
+                    for (
+                        const participant
+                        of update.participants
+                    ) {
+                        const user =
+                            typeof participant ===
+                            "string"
+                                ? participant
+                                : participant.id;
+
+                        if (!user)
+                            continue;
+
+                        // --------------------------------------------
+                        // WELCOME
+                        // --------------------------------------------
+
+                        if (
+                            (
+                                action ===
+                                    "add" ||
+                                action ===
+                                    "join"
+                            ) &&
+                            config
+                                .welcomeChats
+                                ?.includes(jid)
+                        ) {
+                            try {
+                                await sock.sendMessage(
+                                    jid,
+                                    {
+                                        text:
+                                            `🎉 *Welcome @${user.split("@")[0]}!*`,
+                                        mentions: [
+                                            user
+                                        ]
+                                    }
+                                );
+                            } catch {}
+                        }
+
+                        // --------------------------------------------
+                        // GOODBYE
+                        // --------------------------------------------
+
+                        if (
+                            (
+                                action ===
+                                    "remove" ||
+                                action ===
+                                    "leave"
+                            ) &&
+                            config
+                                .goodbyeChats
+                                ?.includes(jid)
+                        ) {
+                            try {
+                                await sock.sendMessage(
+                                    jid,
+                                    {
+                                        text:
+                                            `👋 *Goodbye @${user.split("@")[0]}!*`,
+                                        mentions: [
+                                            user
+                                        ]
+                                    }
+                                );
+                            } catch {}
+                        }
+
+                        // --------------------------------------------
+                        // ANTI FAKE
+                        // --------------------------------------------
+
+                        if (
+                            (
+                                action ===
+                                    "add" ||
+                                action ===
+                                    "join"
+                            ) &&
+                            global
+                                .antiFakeChats
+                                ?.includes(jid)
+                        ) {
+                            const number =
+                                user
+                                    .split("@")[0]
+                                    .replace(
+                                        /[^0-9]/g,
+                                        ""
+                                    );
+
+                            if (
+                                number &&
+                                !number.startsWith(
+                                    "91"
+                                )
+                            ) {
+                                try {
+                                    await sock.groupParticipantsUpdate(
+                                        jid,
+                                        [user],
+                                        "remove"
+                                    );
+                                } catch {}
+                            }
+                        }
+
+                        // --------------------------------------------
+                        // ANTI BOT
+                        // --------------------------------------------
+
+                        if (
+                            (
+                                action ===
+                                    "add" ||
+                                action ===
+                                    "join"
+                            ) &&
+                            global
+                                .antiBotChats
+                                ?.includes(jid)
+                        ) {
+                            if (
+                                user.includes(":")
+                            ) {
+                                try {
+                                    await sock.groupParticipantsUpdate(
+                                        jid,
+                                        [user],
+                                        "remove"
+                                    );
+                                } catch {}
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error(
+                        "Group event error:",
+                        err.message
+                    );
+                }
+            }
+        );
+
+        // ====================================================
+        // MASTER MESSAGE HANDLER
+        // ====================================================
+
+        sock.ev.on(
+            "messages.upsert",
+            async ({
+                messages,
+                type
+            }) => {
+                try {
+                    if (
+                        !Array.isArray(
+                            messages
+                        ) ||
+                        !messages.length
+                    ) {
+                        return;
+                    }
+
+                    for (
+                        const msg of messages
+                    ) {
+                        // ------------------------------------------------
+                        // BASIC VALIDATION
+                        // ------------------------------------------------
+
+                        if (
+                            !msg?.message ||
+                            !msg?.key
+                        ) {
+                            continue;
+                        }
+
+                        if (
+                            isOldMessage(msg)
+                        ) {
+                            continue;
+                        }
+
+                        const jid =
+                            msg.key.remoteJid;
+
+                        if (!jid)
+                            continue;
+
+                        // ------------------------------------------------
+                        // STATUS
+                        // ------------------------------------------------
+
+                        const botNumber =
+                            getBotNumber(sock);
+
+                        if (!botNumber)
+                            continue;
+
+                        const config =
+                            getSettings(
+                                botNumber
+                            );
+
+                        if (
+                            jid ===
+                            "status@broadcast"
+                        ) {
+                            if (
+                                config
+                                    .autoStatusView
+                            ) {
+                                try {
+                                    await sock.readMessages(
+                                        [
+                                            msg.key
+                                        ]
+                                    );
+                                } catch {}
+                            }
+
+                            continue;
+                        }
+
+                        // ------------------------------------------------
+                        // IGNORE SYSTEM EVENTS
+                        // ------------------------------------------------
+
+                        if (
+                            msg.message
+                                .protocolMessage ||
+                            msg.message
+                                .reactionMessage
+                        ) {
+                            continue;
+                        }
+
+                        // ------------------------------------------------
+                        // STORE MESSAGE
+                        // ------------------------------------------------
+
+                        if (
+                            msg.key.id
+                        ) {
+                            global.messageStore[
+                                msg.key.id
+                            ] = msg;
+                        }
+
+                        const isGroup =
+                            isGroupJid(jid);
+
+                        // ------------------------------------------------
+                        // SENDER
+                        // ------------------------------------------------
+
+                        const sender =
+                            getSender(
+                                msg,
+                                sock
+                            );
+
+                        // ------------------------------------------------
+                        // OWNER / SUDO
+                        // ------------------------------------------------
+
+                        const isOwner =
+                            isBotOwner(
+                                sender,
+                                botNumber,
+                                msg
+                            );
+
+                        const sudo =
+                            isSudo(
+                                sender
+                            );
+
+                        const isOwnerOrSudo =
+                            isOwner ||
+                            sudo;
+
+                        // ------------------------------------------------
+                        // TEXT
+                        // ------------------------------------------------
+
+                        const text =
+                            getMessageText(
+                                msg
+                            );
+
+                        // ------------------------------------------------
+                        // BOT MODE
+                        // ------------------------------------------------
+
+                        if (
+                            config.botMode ===
+                                "private" &&
+                            !isOwnerOrSudo
+                        ) {
+                            continue;
+                        }
+
+                        // ------------------------------------------------
+                        // AUTO READ
+                        // ------------------------------------------------
+
+                        if (
+                            config.autoRead &&
+                            !msg.key.fromMe
+                        ) {
+                            try {
+                                await sock.readMessages(
+                                    [
+                                        msg.key
+                                    ]
+                                );
+                            } catch {}
+                        }
+
+                        // ------------------------------------------------
+                        // AUTO REACT
+                        // ------------------------------------------------
+
+                        if (
+                            config.autoReact &&
+                            !msg.key.fromMe
+                        ) {
+                            const emojis = [
+                                "❤️",
+                                "🎀",
+                                "😎",
+                                "🫣",
+                                "🫀",
+                                "😭",
+                                "🥰",
+                                "🍁"
+                            ];
+
+                            const emoji =
+                                emojis[
+                                    Math.floor(
+                                        Math.random() *
+                                            emojis.length
+                                    )
+                                ];
+
+                            // Don't block command processing
+                            sock.sendMessage(
+                                jid,
+                                {
+                                    react: {
+                                        text: emoji,
+                                        key: msg.key
+                                    }
+                                }
+                            ).catch(() => {});
+                        }
+
+                        // ------------------------------------------------
+                        // ANTILINK
+                        // ------------------------------------------------
+
+                        if (
+                            isGroup &&
+                            text &&
+                            config
+                                .antilinkChats
+                                ?.includes(jid) &&
+                            !isOwnerOrSudo
+                        ) {
+                            const linkRegex =
+                                /(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
+
+                            if (
+                                linkRegex.test(
+                                    text
+                                )
+                            ) {
+                                try {
+                                    const metadata =
+                                        await sock.groupMetadata(
+                                            jid
+                                        );
+
+                                    const realSender =
+                                        msg.key
+                                            .participant ||
+                                        msg.participant ||
+                                        sender;
+
+                                    const member =
+                                        metadata.participants.find(
+                                            (p) =>
+                                                p.id ===
+                                                    realSender ||
+                                                p.id ===
+                                                    sender ||
+                                                p.id
+                                                    ?.split(
+                                                        "@"
+                                                    )[0] ===
+                                                    sender.split(
+                                                        "@"
+                                                    )[0]
+                                        );
+
+                                    const isAdmin =
+                                        member?.admin ===
+                                            "admin" ||
+                                        member?.admin ===
+                                            "superadmin";
+
+                                    if (
+                                        !isAdmin
+                                    ) {
+                                        const mode =
+                                            config
+                                                .antilinkMode
+                                                ?. [jid] ||
+                                            "delete";
+
+                                        try {
+                                            await sock.sendMessage(
+                                                jid,
+                                                {
+                                                    delete:
+                                                        msg.key
+                                                }
+                                            );
+                                        } catch {}
+
+                                        if (
+                                            mode ===
+                                            "warn"
+                                        ) {
+                                            await sock.sendMessage(
+                                                jid,
+                                                {
+                                                    text:
+                                                        `⚠️ *@${sender.split("@")[0]}*, WhatsApp group links are not allowed here.`,
+                                                    mentions: [
+                                                        sender
+                                                    ]
+                                                }
+                                            );
+                                        }
+
+                                        else if (
+                                            mode ===
+                                            "kick"
+                                        ) {
+                                            await sock.sendMessage(
+                                                jid,
+                                                {
+                                                    text:
+                                                        `🚫 *@${sender.split("@")[0]}* sent a group link. Removing...`,
+                                                    mentions: [
+                                                        sender
+                                                    ]
+                                                }
+                                            );
+
+                                            setTimeout(
+                                                async () => {
+                                                    try {
+                                                        await sock.groupParticipantsUpdate(
+                                                            jid,
+                                                            [
+                                                                member?.id ||
+                                                                    realSender
+                                                            ],
+                                                            "remove"
+                                                        );
+                                                    } catch {}
+                                                },
+                                                1000
+                                            );
+                                        }
+
+                                        continue;
+                                    }
+                                } catch (
+                                    err
+                                ) {
+                                    console.error(
+                                        "AntiLink error:",
+                                        err.message
+                                    );
+                                }
+                            }
+                        }
+
+                        // ------------------------------------------------
+                        // AUTO DOWNLOAD
+                        // ------------------------------------------------
+
+                        const autoDlEnabled =
+                            config
+                                .autoDlChats
+                                ?.includes(jid) ||
+                            (
+                                config
+                                    .autoDlAllGroups &&
+                                isGroup
+                            ) ||
+                            (
+                                config
+                                    .autoDlAllDms &&
+                                !isGroup
+                            );
+
+                        const prefix =
+                            process.env
+                                .PREFIX ||
+                            ".";
+
+                        if (
+                            autoDlEnabled &&
+                            text &&
+                            !text.startsWith(
+                                prefix
+                            )
+                        ) {
+                            try {
+                                // NO 2 SECOND SLEEP HERE
+                                // This was causing unnecessary delay.
+
+                                if (
+                                    /instagram\.com/i.test(
+                                        text
+                                    )
+                                ) {
+                                    const insta =
+                                        findCommand(
+                                            "insta"
+                                        );
+
+                                    if (
+                                        insta
+                                    ) {
+                                        await insta.execute(
+                                            sock,
+                                            msg,
+                                            [text],
+                                            isOwnerOrSudo
+                                        );
+                                    }
+
+                                    continue;
+                                }
+
+                                if (
+                                    /facebook\.com|fb\.watch|fb\.gg/i.test(
+                                        text
+                                    )
+                                ) {
+                                    const fb =
+                                        findCommand(
+                                            "fb"
+                                        );
+
+                                    if (
+                                        fb
+                                    ) {
+                                        await fb.execute(
+                                            sock,
+                                            msg,
+                                            [text],
+                                            isOwnerOrSudo
+                                        );
+                                    }
+
+                                    continue;
+                                }
+
+                                if (
+                                    /youtube\.com|youtu\.be/i.test(
+                                        text
+                                    )
+                                ) {
+                                    const ytv =
+                                        findCommand(
+                                            "ytv"
+                                        );
+
+                                    if (
+                                        ytv
+                                    ) {
+                                        await ytv.execute(
+                                            sock,
+                                            msg,
+                                            [text],
+                                            isOwnerOrSudo
+                                        );
+                                    }
+
+                                    continue;
+                                }
+                            } catch (
+                                err
+                            ) {
+                                console.error(
+                                    "AutoDL error:",
+                                    err.message
+                                );
+                            }
+                        }
+
+                        // ------------------------------------------------
+                        // COMMAND PARSING
+                        // ------------------------------------------------
+
+                        let args;
+
+                        if (
+                            text.startsWith(
+                                prefix
+                            )
+                        ) {
+                            const commandText =
+                                text
+                                    .slice(
+                                        prefix.length
+                                    )
+                                    .trim();
+
+                            if (
+                                !commandText
+                            ) {
+                                continue;
+                            }
+
+                            args =
+                                commandText.split(
+                                    /\s+/
+                                );
+                        }
+
+                        else if (
+                            config.withoutHandler
+                        ) {
+                            if (!text)
+                                continue;
+
+                            args =
+                                text.split(
+                                    /\s+/
+                                );
+                        }
+
+                        else {
+                            continue;
+                        }
+
+                        const commandName =
+                            String(
+                                args.shift() ||
+                                    ""
+                            ).toLowerCase();
+
+                        if (
+                            !commandName
+                        ) {
+                            continue;
+                        }
+
+                        // ------------------------------------------------
+                        // .ME
+                        // ------------------------------------------------
+
+                        if (
+                            commandName ===
+                            "me"
+                        ) {
+                            if (
+                                !isOwnerOrSudo
+                            ) {
+                                await sock.sendMessage(
+                                    jid,
+                                    {
+                                        text:
+                                            "❌ *Owner only!*"
+                                    },
+                                    {
+                                        quoted:
+                                            msg
+                                    }
+                                );
+
+                                continue;
+                            }
+
+                            await sock.sendMessage(
+                                jid,
+                                {
+                                    text:
+                                        `😎 *That's me!*\n\n👉 @${sender.split("@")[0]}`,
+                                    mentions: [
+                                        sender
+                                    ]
+                                },
+                                {
+                                    quoted:
+                                        msg
+                                }
+                            );
+
+                            continue;
+                        }
+
+                        // ------------------------------------------------
+                        // FIND COMMAND
+                        // ------------------------------------------------
+
+                        const command =
+                            findCommand(
+                                commandName
+                            );
+
+                        if (!command)
+                            continue;
+
+                        // ------------------------------------------------
+                        // PRIVATE MODE
+                        // ------------------------------------------------
+
+                        if (
+                            config.botMode ===
+                                "private" &&
+                            !isOwnerOrSudo
+                        ) {
+                            continue;
+                        }
+
+                        // ------------------------------------------------
+                        // OWNER COMMAND
+                        // ------------------------------------------------
+
+                        if (
+                            command.category ===
+                                "owner" &&
+                            !isOwnerOrSudo
+                        ) {
+                            await sock.sendMessage(
+                                jid,
+                                {
+                                    text:
+                                        "❌ *Owner only command!*"
+                                },
+                                {
+                                    quoted:
+                                        msg
+                                }
+                            );
+
+                            continue;
+                        }
+
+                        // ------------------------------------------------
+                        // EXECUTE
+                        // ------------------------------------------------
+
+                        try {
+                            await command.execute(
+                                sock,
+                                msg,
+                                args,
+                                isOwnerOrSudo
+                            );
+                        } catch (
+                            cmdErr
+                        ) {
+                            console.error(
+                                `❌ Command "${command.name}" error:`,
+                                cmdErr
+                            );
+
+                            try {
+                                await sock.sendMessage(
+                                    jid,
+                                    {
+                                        text:
+                                            "❌ *Something went wrong while executing this command.*"
+                                    },
+                                    {
+                                        quoted:
+                                            msg
+                                    }
+                                );
+                            } catch {}
+                        }
+                    }
+                } catch (err) {
+                    console.error(
+                        "❌ Message handler error:",
+                        err
+                    );
+                }
+            }
+        );
+
+        // ====================================================
+        // EXTERNAL PLUGIN EVENT LISTENERS
+        // ====================================================
+
+        try {
+            const antiPromotePlugin =
+                require(
+                    "./plugins/antipromote.js"
+                );
+
+            if (
+                antiPromotePlugin &&
+                typeof antiPromotePlugin
+                    .initAntiPromote ===
+                    "function"
+            ) {
+                antiPromotePlugin.initAntiPromote(
+                    sock
+                );
+
+                console.log(
+                    "🛡️ AntiPromote listener loaded"
+                );
+            }
+        } catch (err) {
+            console.error(
+                "❌ AntiPromote load error:",
+                err.message
+            );
+        }
+
+        try {
+            const groupManager =
+                require(
+                    "./plugins/group_manager.js"
+                );
+
+            if (
+                groupManager &&
+                typeof groupManager
+                    .initGroupEvents ===
+                    "function"
+            ) {
+                groupManager.initGroupEvents(
+                    sock
+                );
+
+                console.log(
+                    "👥 Group manager loaded"
+                );
+            }
+        } catch (err) {
+            console.error(
+                "❌ Group manager load error:",
+                err.message
+            );
+        }
+
+        try {
+            const mentionMePlugin =
+                require(
+                    "./plugins/mentionme.js"
+                );
+
+            if (
+                mentionMePlugin &&
+                typeof mentionMePlugin
+                    .initMentionMe ===
+                    "function"
+            ) {
+                mentionMePlugin.initMentionMe(
+                    sock
+                );
+
+                console.log(
+                    "🎤 MentionMe listener loaded"
+                );
+            }
+        } catch (err) {
+            console.error(
+                "❌ MentionMe load error:",
+                err.message
+            );
+        }
+
+        return sock;
+
+    } catch (err) {
+        starting = false;
+
+        console.error(
+            "❌ START KIRA ERROR:",
+            err
+        );
+
+        if (
+            !reconnectTimer
+        ) {
+            reconnectTimer =
+                setTimeout(
+                    async () => {
+                        reconnectTimer =
+                            null;
+
+                        try {
+                            await startKira();
+                        } catch (
+                            reconnectError
+                        ) {
+                            console.error(
+                                "❌ Retry failed:",
+                                reconnectError.message
+                            );
+                        }
+                    },
+                    5000
+                );
+        }
+    }
+}
+
+// ============================================================
+// START
+// ============================================================
+
 (async () => {
-    await startKira();
-})().catch(err => {
-    console.error("❌ START ERROR:", err);
-});
+    try {
+        await startKira();
+    } catch (err) {
+        console.error(
+            "❌ FATAL START ERROR:",
+            err
+        );
+    }
+})();
