@@ -24,6 +24,9 @@ module.exports = {
         const isUrlMatch = input.match(/(https?:\/\/(www\.)?(pinterest\.com|pin\.it)\/[^\s]+)/gi);
 
         if (isUrlMatch) {
+            // ─────────────────────────────────────
+            // DOWNLOAD URL LOGIC
+            // ─────────────────────────────────────
             const url = isUrlMatch[0];
             let filePath = '';
             let success = false;
@@ -45,7 +48,6 @@ module.exports = {
                         const res = await axios.get(apis[i], { timeout: 15000 });
                         const data = res.data;
 
-                        // 🔥 Xeon API-ക്ക് വേണ്ടി പ്രത്യേകം അപ്ഡേറ്റ് ചെയ്ത ഭാഗം
                         if (data.videos && data.videos.length > 0) {
                             mediaUrl = data.videos[0];
                             isVideo = true;
@@ -53,7 +55,6 @@ module.exports = {
                             mediaUrl = data.images[0];
                             isVideo = false;
                         } 
-                        // ബാക്കപ്പ് API-കൾക്ക് വേണ്ടി
                         else if (typeof data.result === 'string' && data.result.startsWith('http')) {
                             mediaUrl = data.result;
                         } else if (data.data && data.data.url) {
@@ -67,12 +68,8 @@ module.exports = {
                         }
 
                         if (!mediaUrl) continue;
+                        if (mediaUrl.includes('pincdn.app') && i < apis.length - 1) continue; 
 
-                        if (mediaUrl.includes('pincdn.app') && i < apis.length - 1) {
-                            continue; 
-                        }
-
-                        // എക്സ്റ്റൻഷൻ ചെക്ക് ചെയ്യുന്നു
                         if (!isVideo) {
                             isVideo = mediaUrl.includes('.mp4') || mediaUrl.includes('video') || (data.result && data.result.type === 'video');
                         }
@@ -83,7 +80,6 @@ module.exports = {
                         const fileName = `pin_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
                         filePath = path.join(tempDir, fileName);
 
-                        // 🔥 Stream എറർ ഒഴിവാക്കാൻ ഹെഡറുകൾ സ്ട്രോങ്ങ് ആക്കി!
                         const writer = fs.createWriteStream(filePath);
                         const mediaRes = await axios({
                             url: mediaUrl,
@@ -127,7 +123,7 @@ module.exports = {
                         }
 
                         success = true;
-                        try { fs.unlinkSync(filePath); } catch (e) {} // അയച്ച ശേഷം ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു
+                        try { fs.unlinkSync(filePath); } catch (e) {} 
                         break; 
 
                     } catch (e) {
@@ -147,25 +143,24 @@ module.exports = {
             }
 
         } else {
-            // Search ഭാഗം
+            // ─────────────────────────────────────
+            // SEARCH LOGIC (USING YOUR VERCEL API)
+            // ─────────────────────────────────────
             try {
-                const searchUrl = `https://jerrycoder.oggyapi.workers.dev/search/pin?q=${encodeURIComponent(input)}&type=image&limit=5`;
+                // 🚀 Calling your custom Vercel API
+                const searchUrl = `https://kiraxmd-api.vercel.app/api/pinsearch?q=${encodeURIComponent(input)}`;
                 const res = await axios.get(searchUrl, { timeout: 15000 });
                 
-                let results = [];
-                if (res.data.result && Array.isArray(res.data.result)) results = res.data.result;
-                else if (res.data.data && Array.isArray(res.data.data)) results = res.data.data;
-                else if (Array.isArray(res.data)) results = res.data;
+                // Directly taking the result array from your Vercel JSON
+                const results = res.data.result;
 
-                if (results.length === 0) throw new Error("No pins found for your search.");
+                if (!results || results.length === 0) throw new Error("No pins found for your search.");
 
-                results = results.slice(0, 5);
                 await sock.sendMessage(jid, { text: `📥 *Downloading ${results.length} pins for:* ${input}` });
 
                 let sentCount = 0;
 
-                for (const item of results) {
-                    const imgUrl = typeof item === 'string' ? item : (item.image || item.url || item.media_url);
+                for (const imgUrl of results) {
                     if (imgUrl) {
                         try {
                             const imgRes = await axios.get(imgUrl, {
@@ -183,7 +178,9 @@ module.exports = {
                                 caption: `📌 *KIRA X MD*` 
                             });
                             sentCount++;
-                        } catch (e) {}
+                        } catch (e) {
+                            console.log("Failed to download image:", imgUrl);
+                        }
                     }
                 }
                 
@@ -192,7 +189,7 @@ module.exports = {
 
             } catch (err) {
                 console.error("Pinterest Search Error:", err.message); 
-                await sock.sendMessage(jid, { text: `❌ *Search failed:* Server busy.` }, { quoted: msg });
+                await sock.sendMessage(jid, { text: `❌ *Search failed:* Could not fetch results from API.` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
             }
         }
