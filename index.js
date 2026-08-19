@@ -22,8 +22,18 @@ const { getSettings } = require("./lib/database");
 // ============================================================
 // DYNAMIC CONFIG HELPERS & RESET FUNCTION
 // ============================================================
-function getBotName() {
-    return global.config?.BOT_NAME || global.getBotName(botNumber) || "KIRA X MD";
+
+// 🔥 എറർ മാറ്റിയ പുതിയ ഫങ്ഷൻ 🔥
+function getBotName(sock) {
+    try {
+        const currentSock = sock || activeSocket;
+        if (currentSock?.user?.id) {
+            const botNum = currentSock.user.id.split(":")[0].replace(/[^0-9]/g, "");
+            const config = getSettings(botNum);
+            if (config?.botName) return config.botName;
+        }
+    } catch (err) {}
+    return global.config?.BOT_NAME || process.env.BOT_NAME || "KIRA X MD";
 }
 
 function getPackName() {
