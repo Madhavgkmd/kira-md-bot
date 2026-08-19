@@ -88,7 +88,7 @@ module.exports = {
                     caption:
 `${title}
 
-> *Downloaded by KIRA X MD*`
+> *Downloaded by ${getBotName()}*`
                 },
                 { quoted: msg }
             );

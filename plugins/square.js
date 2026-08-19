@@ -42,7 +42,6 @@ module.exports = {
             if (isVideo) {
                 await new Promise((resolve, reject) => {
                     ffmpeg(inputPath)
-                        // 🛠️ FIX: ഇവിടെയാണ് നമ്മൾ മാറ്റം വരുത്തിയത് (കോമ പ്രശ്നം ഒഴിവാക്കാൻ Object ആക്കി കൊടുത്തു)
                         .videoFilters([{
                             filter: 'crop',
                             options: ['min(iw,ih)', 'min(iw,ih)']
@@ -55,10 +54,10 @@ module.exports = {
                 });
                 
                 const videoBuffer = fs.readFileSync(outputPath);
+                // ക്യാപ്ഷൻ ഇല്ലാതെ വീഡിയോ അയക്കുന്നു
                 await sock.sendMessage(jid, { 
                     video: videoBuffer, 
-                    mimetype: 'video/mp4', 
-                    caption: "🎬 *Squared by KIRA X MD*" 
+                    mimetype: 'video/mp4' 
                 }, { quoted: msg });
                 
             } else {
@@ -67,9 +66,9 @@ module.exports = {
                     .toFile(outputPath);
                     
                 const imgBuffer = fs.readFileSync(outputPath);
+                // ക്യാപ്ഷൻ ഇല്ലാതെ ഫോട്ടോ അയക്കുന്നു
                 await sock.sendMessage(jid, { 
-                    image: imgBuffer, 
-                    caption: "🖼️ *Squared by KIRA X MD*" 
+                    image: imgBuffer 
                 }, { quoted: msg });
             }
             

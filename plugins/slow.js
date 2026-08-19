@@ -39,8 +39,13 @@ module.exports = {
                     .run();
             });
 
-            const audioBuffer = fs.readFileSync(outputPath);
-            await sock.sendMessage(jid, { audio: audioBuffer, mimetype: "audio/mpeg", ptt: false, caption: "KIRA X MD" });
+            // ക്യാപ്ഷൻ ഇല്ലാതെ ഓഡിയോ ഫയൽ അയക്കുന്നു (+ ഒറിജിനൽ മെസ്സേജിലേക്ക് റിപ്ലൈ ആയി)
+            await sock.sendMessage(jid, { 
+                audio: { url: outputPath }, 
+                mimetype: "audio/mpeg", 
+                ptt: false 
+            }, { quoted: msg });
+
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
         } catch (err) {
             console.error(err);
@@ -48,7 +53,8 @@ module.exports = {
         } finally {
             try {
                 if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-                if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+                // ശ്രദ്ധിക്കുക: ഫയൽ url വഴി അയക്കുമ്പോൾ ffmpeg പൂർത്തിയാകുന്ന മുമ്പേ ഡിലീറ്റ് ആവാതിരിക്കാൻ 
+                // കുറച്ചു സമയം കഴിഞ്ഞ് ഡിലീറ്റ് ചെയ്യാൻ വെക്കുന്നതാണ് നല്ലത്, അല്ലെങ്കിൽ ബഫർ വഴി അയക്കാം.
             } catch (e) {}
         }
     }

@@ -67,11 +67,10 @@ module.exports = {
                 }
             }
 
-            // 4. റിസൾട്ട് വാട്സ്ആപ്പിലേക്ക് അയക്കുന്നു (PNG ഫോർമാറ്റ് സുതാര്യത നിലനിർത്താൻ സഹായിക്കും)
+            // 4. ക്യാപ്ഷനും വാട്ടർമാർക്കും ഇല്ലാതെ റിസൾട്ട് വാട്സ്ആപ്പിലേക്ക് അയക്കുന്നു
             await sock.sendMessage(jid, { 
                 image: resultBuffer, 
-                mimetype: 'image/png',
-                caption: '✨ *Background Removed*\n\n> *KIRA X MD*' 
+                mimetype: 'image/png'
             }, { quoted: msg });
 
             // ✅ സക്സസ് റിയാക്ഷൻ

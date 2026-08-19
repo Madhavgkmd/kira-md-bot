@@ -20,6 +20,39 @@ const { loadAllSubBots } = require("./lib/subbot");
 const { getSettings } = require("./lib/database");
 
 // ============================================================
+// DYNAMIC CONFIG HELPERS & RESET FUNCTION
+// ============================================================
+function getBotName() {
+    return global.config?.BOT_NAME || process.env.BOT_NAME || "KIRA X MD";
+}
+
+function getPackName() {
+    return global.config?.PACK_NAME || process.env.PACK_NAME || "KIRA X MD • Stickers";
+}
+
+function getAuthorName() {
+    return global.config?.AUTHOR_NAME || process.env.AUTHOR_NAME || "User";
+}
+
+// സെഷൻ ക്ലിയർ ചെയ്യുമ്പോൾ എല്ലാം കംപ്ലീറ്റ് ഡിഫോൾട്ട് ആക്കാനുള്ള ഫങ്ഷൻ
+function resetEnvToDefault() {
+    try {
+        const envPath = path.join(process.cwd(), '.env');
+        if (fs.existsSync(envPath)) {
+            let envData = fs.readFileSync(envPath, 'utf8');
+            envData = envData.replace(/^BOT_NAME=.*/m, 'BOT_NAME="KIRA X MD"');
+            envData = envData.replace(/^OWNER_NAME=.*/m, 'OWNER_NAME="Madhav"');
+            envData = envData.replace(/^MENU_IMAGE=.*/m, 'MENU_IMAGE="https://files.catbox.moe/22x0j5.jpeg"');
+            envData = envData.replace(/^PACK_NAME=.*/m, 'PACK_NAME="KIRA X MD • Stickers"');
+            envData = envData.replace(/^AUTHOR_NAME=.*/m, 'AUTHOR_NAME="User"');
+            fs.writeFileSync(envPath, envData);
+        }
+    } catch (err) {
+        console.error("Reset env error:", err.message);
+    }
+}
+
+// ============================================================
 // GLOBAL ERROR HANDLERS
 // ============================================================
 
@@ -122,7 +155,7 @@ http.createServer((req, res) => {
         "Content-Type": "text/plain"
     });
 
-    res.end("KIRA-X-MD is Running 24/7");
+    res.end(`${getBotName()} is Running 24/7`);
 }).listen(PORT, () => {
     console.log(`🌐 HTTP Server running on port ${PORT}`);
 });
@@ -284,20 +317,6 @@ function isBotOwner(sender, botNumber, msg) {
 // ============================================================
 // COMMAND FINDER
 // ============================================================
-//
-// IMPORTANT:
-// Exact command name gets priority over alias.
-//
-// This fixes:
-//
-// .sticker
-//
-// accidentally matching settings.js:
-//
-// alias: ["sticker"]
-//
-// instead of plugins/sticker.js
-// ============================================================
 
 function findCommand(commandName) {
     const exact = commands.find(
@@ -448,6 +467,8 @@ function prepareSession() {
                     }
                 );
 
+                resetEnvToDefault();
+
                 fs.mkdirSync(sessionDir, {
                     recursive: true
                 });
@@ -492,7 +513,7 @@ let activeSocket = null;
 async function startKira() {
     if (starting) {
         console.log(
-            "⚠️ KIRA is already starting..."
+            `⚠️ ${getBotName()} is already starting...`
         );
         return;
     }
@@ -501,7 +522,7 @@ async function startKira() {
 
     try {
         console.log(
-            "\n🚀 Starting KIRA X MD..."
+            `\n🚀 Starting ${getBotName()}...`
         );
 
         prepareSession();
@@ -540,7 +561,7 @@ async function startKira() {
 
             printQRInTerminal: false,
 
-           browser: Browsers.macOS("Chrome"),
+            browser: Browsers.macOS("Chrome"),
 
             markOnlineOnConnect: false,
 
@@ -625,7 +646,7 @@ async function startKira() {
                             );
 
                             console.log(
-                                "🔑 KIRA X MD PAIRING CODE:",
+                                `🔑 KIRA X MD PAIRING CODE:`,
                                 formatted
                             );
 
@@ -658,8 +679,8 @@ async function startKira() {
                         );
 
                         console.log(
-                            "✅ KIRA X MD CONNECTED"
-                        );
+                        `✅ KIRA X MD CONNECTED`
+                    );
 
                         console.log(
                             "🤖 Bot:",
@@ -733,10 +754,10 @@ async function startKira() {
                                                 owner,
                                                 {
                                                     text:
-                                                        `╭━━━〔 KIRA-X-MD 〕━━━⬣\n\n` +
+                                                        `╭━━━〔 KIRA X MD 〕━━━⬣\n\n` +
                                                         `✅ *Connected Successfully*\n` +
                                                         `🛡️ *Status:* Active\n` +
-                                                        `🤖 *Bot:* KIRA-X-MD\n\n` +
+                                                        `🤖 *Bot:* KIRA X MD\n\n` +
                                                         `╰━━━━━━━━━━━━━━⬣`
                                                 }
                                             );
@@ -787,6 +808,7 @@ async function startKira() {
                                         force: true
                                     }
                                 );
+                                resetEnvToDefault();
                             } catch {}
 
                             process.exit(1);
@@ -1048,7 +1070,7 @@ async function startKira() {
                         if (
                             update.update
                                 ?.message ===
-                                null
+                            null
                         ) {
                             await handleDelete(
                                 update.key

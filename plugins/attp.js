@@ -12,8 +12,8 @@ async function addMetadata(webpFilePath, packName, authorName) {
 
         const exifJSON = {
             "sticker-pack-id": "kira-x-md-sticker",
-            "sticker-pack-name": packName,
-            "sticker-author-name": authorName,
+            "sticker-pack-name": packName || "User",
+            "sticker-author-name": authorName || "KIRA X MD",
             "emojis": ["🌈", "✨"]
         };
 
@@ -97,10 +97,14 @@ module.exports = {
 
         if (!text) {
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return await sock.sendMessage(jid, { text: "*_⚠️ Need text!_*\n_Example: .attp KIRA_" }, { quoted: msg });
+            return await sock.sendMessage(jid, { text: "*_⚠️ Need text!_*\n_Example: .attp HI_" }, { quoted: msg });
         }
 
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
+
+        // 🔥 Dynamic Watermark Setup
+        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        const senderName = msg.pushName || "User";
 
         let tempPath;
         try {
@@ -113,8 +117,8 @@ module.exports = {
             tempPath = path.join(tempDir, `attp_${Date.now()}.webp`);
             fs.writeFileSync(tempPath, buffer);
 
-            // Add your KIRA X MD Watermark
-            await addMetadata(tempPath, "KIRA X MD", "Kira");
+            // 🔥 Add Dynamic Watermark (User Name • Bot Name)
+            await addMetadata(tempPath, senderName, botName);
 
             // Send Sticker
             const stickerBuffer = fs.readFileSync(tempPath);

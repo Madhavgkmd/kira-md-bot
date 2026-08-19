@@ -14,7 +14,7 @@ module.exports = [
                 const { data } = await axios.get('https://jerrycoder.oggyapi.workers.dev/anime/naruto?json=true', { timeout: 15000 });
                 if (!data?.url) throw new Error("Video URL not found");
                 
-                await sock.sendMessage(jid, { video: { url: data.url }, caption: '🎬 *Naruto Uzumaki*\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { video: { url: data.url }, caption: `🎬 *Naruto Uzumaki*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 console.error("NARUTO ERROR:", e.message);
@@ -36,7 +36,7 @@ module.exports = [
                 const { data } = await axios.get('https://jerrycoder.oggyapi.workers.dev/anime/onepiece?json=true', { timeout: 15000 });
                 if (!data?.url) throw new Error("Video URL not found");
                 
-                await sock.sendMessage(jid, { video: { url: data.url }, caption: '🎬 *One Piece*\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { video: { url: data.url }, caption: `🎬 *One Piece*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 console.error("ONEPIECE ERROR:", e.message);
@@ -185,7 +185,7 @@ module.exports = [
                     contextInfo: {
                         externalAdReply: {
                             title: res.title || "Apple Music",
-                            body: res.artist || "Downloaded via KIRA",
+                            body: res.artist || `Downloaded via ${global.config?.BOT_NAME || 'KIRA'}`,
                             mediaType: 1,
                             thumbnailUrl: res.thumbnail || ""
                         }
@@ -267,7 +267,7 @@ module.exports = [
                 const imgUrl = data?.result?.url || data?.url || data?.result || data?.data;
                 if (!imgUrl) throw new Error("Image URL not found in API response");
                 
-                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: '🐺 *Awoo!*\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: `🐺 *Awoo!*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 console.error("AWOO ERROR:", e.message);
@@ -291,7 +291,7 @@ module.exports = [
                 const imgUrl = data?.result?.url || data?.url || data?.result || data?.data;
                 if (!imgUrl) throw new Error("Image URL not found in API response");
                 
-                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: '🐾 *Neko Kawaii!*\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: `🐾 *Neko Kawaii!*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 console.error("NEKO ERROR:", e.message);
@@ -315,7 +315,7 @@ module.exports = [
                 const imgUrl = data?.result?.url || data?.url || data?.result || data?.data;
                 if (!imgUrl) throw new Error("Image URL not found in API response");
                 
-                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: '⛩️ *Konachan Image*\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: `⛩️ *Konachan Image*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 console.error("KONACHAN ERROR:", e.message);
@@ -350,7 +350,7 @@ module.exports = [
                 const link = anime.url || anime.link || '';
                 const genre = anime.genre || anime.genres || 'N/A';
                 
-                const caption = `⛩️ *KUSONIME SEARCH*\n\n🎬 *Title:* ${title}\n🎭 *Genre:* ${genre}\n🔗 *Link:* ${link}\n\n> *KIRA X MD*`;
+                const caption = `⛩️ *KUSONIME SEARCH*\n\n🎬 *Title:* ${title}\n🎭 *Genre:* ${genre}\n🔗 *Link:* ${link}\n\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
                 
                 if (thumb) {
                     await sock.sendMessage(jid, { image: { url: thumb }, caption: caption }, { quoted: msg });

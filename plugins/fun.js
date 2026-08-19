@@ -17,6 +17,9 @@ module.exports = {
         const cmdName = text.trim().split(/ +/).shift().toLowerCase();
         const action = cmdName.startsWith(prefix) ? cmdName.slice(prefix.length) : cmdName;
 
+        // 🔥 Dynamic Bot Name
+        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+
         // ⏳ ലോഡിങ് റിയാക്ഷൻ
         await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
 
@@ -27,7 +30,7 @@ module.exports = {
                 const contentType = res.headers['content-type'] || '';
                 
                 let imageBuffer;
-                let captionText = '😂 *Here is your Meme!*\n\n> *KIRA X MD*';
+                let captionText = `😂 *Here is your Meme!*\n\n> *${botName}*`;
 
                 if (contentType.includes('application/json')) {
                     const json = JSON.parse(res.data.toString('utf-8'));
@@ -35,7 +38,7 @@ module.exports = {
                     let mediaUrl = resultObj.meme_url || json.url || json.image;
                     const title = resultObj.title || json.title;
                     
-                    if (title) captionText = `😂 *${title}*\n\n> *KIRA X MD*`;
+                    if (title) captionText = `😂 *${title}*\n\n> *${botName}*`;
                     if (!mediaUrl) throw new Error("Could not extract meme URL.");
 
                     const mediaRes = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 20000 });
@@ -54,7 +57,7 @@ module.exports = {
                 const resultObj = data.result || {};
                 const factText = resultObj.fact || data.fact || data.text || (typeof data === 'string' ? data : "Could not fetch a fact.");
 
-                const formatMsg = `🧠 *Did you know?*\n\n${factText}\n\n> *KIRA X MD*`;
+                const formatMsg = `🧠 *Did you know?*\n\n${factText}\n\n> *${botName}*`;
                 await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
             }
 
@@ -65,7 +68,7 @@ module.exports = {
                 const resultObj = data.result || {};
                 const questionText = resultObj.question || data.question || data.text || (typeof data === 'string' ? data : "Could not fetch a question.");
 
-                const formatMsg = `🤔 *Question for you!*\n\n${questionText}\n\n> *KIRA X MD*`;
+                const formatMsg = `🤔 *Question for you!*\n\n${questionText}\n\n> *${botName}*`;
                 await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
             }
 
@@ -80,7 +83,7 @@ module.exports = {
                 const resultMessage = resultObj.resultMessage || "";
 
                 // സ്പേസുകൾ കളഞ്ഞ് നല്ല ഭംഗിയായി മെസ്സേജ് ഒരുക്കുന്നു
-                const formatMsg = `${slotDisplay.trim()}\n\n${resultMessage}\n\n> *KIRA X MD*`;
+                const formatMsg = `${slotDisplay.trim()}\n\n${resultMessage}\n\n> *${botName}*`;
                 await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
             }
 

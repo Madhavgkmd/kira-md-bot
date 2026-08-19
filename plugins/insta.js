@@ -1,4 +1,4 @@
-// plugins/insta.js - KIRA X MD (Aswin Sparky API Version)
+// plugins/insta.js - KIRA X MD (Multi-Bot Supported Version)
 
 const axios = require("axios");
 
@@ -48,33 +48,37 @@ module.exports = {
             const data = res.data;
 
             if (!data || !data.status || !data.data || data.data.length === 0) {
-                throw new Error("Could not extract media. The post might be private or deleted.");
+                throw new Error("No data found");
             }
 
             const items = data.data;
             console.log(`✅ API Success! Found ${items.length} media item(s).`);
 
             // ─────────────────────────────────────
-            // 3. SEND DIRECTLY TO WHATSAPP
+            // 3. BUFFER FIX & SEND TO WHATSAPP
             // ─────────────────────────────────────
             for (const item of items) {
                 const mediaUrl = item.url;
                 if (!mediaUrl) continue;
 
-                // Checking type directly from the Sparky API payload
                 const type = item.type === "video" ? "video" : "image";
-                console.log(`📡 Sending ${type} to WhatsApp...`);
+                console.log(`📡 Downloading ${type} as buffer to support multiple bots...`);
 
-                // Because dl.snapcdn.app handles the CDN headers perfectly, 
-                // we can safely pass the URL directly to Baileys!
+                // 🔥 THE FIX: Download as buffer first
+                const mediaResponse = await axios.get(mediaUrl, { 
+                    responseType: 'arraybuffer',
+                    timeout: 60000 // 1 minute timeout for large videos
+                });
+                const mediaBuffer = Buffer.from(mediaResponse.data);
+
                 if (type === "video") {
                     await sock.sendMessage(jid, { 
-                        video: { url: mediaUrl }, 
-                        caption: "" // Keeping it clean as you requested earlier
+                        video: mediaBuffer, 
+                        caption: "" 
                     }, { quoted: msg });
                 } else {
                     await sock.sendMessage(jid, { 
-                        image: { url: mediaUrl }, 
+                        image: mediaBuffer, 
                         caption: "" 
                     }, { quoted: msg });
                 }
@@ -85,8 +89,9 @@ module.exports = {
         } catch (err) {
             console.error("❌ INSTA ERROR:", err.message);
             
+            // 🔥 CUSTOM ERROR MESSAGE
             await sock.sendMessage(jid, { 
-                text: `❌ *Download Failed*\n\n⚠️ ${err.message}` 
+                text: "❌ *Something error please try again later*" 
             }, { quoted: msg });
             
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });

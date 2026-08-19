@@ -11,6 +11,9 @@ module.exports = {
         const jid = msg.key.remoteJid;
         const prefix = process.env.PREFIX || '.';
         
+        // 🔥 Dynamic Bot Name Helper
+        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        
         // യൂസർ എന്താണ് ചെയ്യാൻ ഉദ്ദേശിക്കുന്നത് എന്ന് മനസ്സിലാക്കാൻ
         const action = args[0]?.toLowerCase();
         const categoryArg = args[1]?.toLowerCase();
@@ -18,11 +21,11 @@ module.exports = {
 
         // 1. വെറുതെ .news എന്ന് അടിച്ചാൽ മിനി-മെനു കാണിക്കാൻ
         if (!action || !['cat', 'categories', 'sites', 'fetch', 'get'].includes(action)) {
-            const menuText = `📰 *KIRA NEWS HUB* 📰\n\n` +
+            const menuText = `📰 *NEWS HUB* 📰\n\n` +
                 `*1. View Categories:*\n➤ \`${prefix}news cat\`\n\n` +
                 `*2. View Sites by Category:*\n➤ \`${prefix}news sites <category>\`\n_(Example: ${prefix}news sites indian)_\n\n` +
                 `*3. Read News:*\n➤ \`${prefix}news fetch <category> <number>\`\n_(Example: ${prefix}news fetch international 5)_\n\n` +
-                `> *KIRA X MD*`;
+                `> *${botName}*`;
             
             return sock.sendMessage(jid, { text: menuText }, { quoted: msg });
         }
@@ -44,7 +47,7 @@ module.exports = {
                     catName = catName.charAt(0).toUpperCase() + catName.slice(1);
                     formatMsg += `*${i + 1}.* ${catName}\n`;
                 });
-                formatMsg += `\n> *KIRA X MD*`;
+                formatMsg += `\n> *${botName}*`;
 
                 await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
             }
@@ -67,7 +70,7 @@ module.exports = {
                     let siteName = typeof sites[i] === 'string' ? sites[i] : (sites[i].name || sites[i].title || "Unknown Site");
                     formatMsg += `*${i + 1}.* ${siteName}\n`;
                 }
-                formatMsg += `\n> *KIRA X MD*`;
+                formatMsg += `\n> *${botName}*`;
 
                 await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
             }
@@ -99,7 +102,7 @@ module.exports = {
                     if (article.url || article.link) formatMsg += `🔗 Link: ${article.url || article.link}\n`;
                     formatMsg += `┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n`;
                 }
-                formatMsg += `\n> *KIRA X MD*`;
+                formatMsg += `\n> *${botName}*`;
 
                 await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
             }

@@ -18,6 +18,9 @@ async function fetchMedia(url) {
     return res.data;
 }
 
+// ഡൈനാമിക് ബോട്ട് നെയിം ഫംഗ്ഷൻ
+const getBotName = () => global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+
 module.exports = [
     // 1. ASTATUS
     {
@@ -31,7 +34,7 @@ module.exports = [
             await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
             try {
                 const buffer = await fetchMedia('https://abhi-api.vercel.app/api/anime/astatus');
-                await sock.sendMessage(jid, { video: buffer, caption: '⛩️ *Anime Status*\n\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { video: buffer, caption: `⛩️ *Anime Status*\n\n> *${getBotName()}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
@@ -56,8 +59,8 @@ module.exports = [
                 const maleBuffer = await axios.get(maleUrl, { responseType: 'arraybuffer' });
                 const femaleBuffer = await axios.get(femaleUrl, { responseType: 'arraybuffer' });
 
-                await sock.sendMessage(jid, { image: maleBuffer.data, caption: '👦 *Boy DP*\n> *KIRA X MD*' }, { quoted: msg });
-                await sock.sendMessage(jid, { image: femaleBuffer.data, caption: '👧 *Girl DP*\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: maleBuffer.data, caption: `👦 *Boy DP*\n> *${getBotName()}*` }, { quoted: msg });
+                await sock.sendMessage(jid, { image: femaleBuffer.data, caption: `👧 *Girl DP*\n> *${getBotName()}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
@@ -75,7 +78,7 @@ module.exports = [
             await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
             try {
                 const buffer = await fetchMedia('https://abhi-api.vercel.app/api/anime/itachi');
-                await sock.sendMessage(jid, { image: buffer, caption: '⛩️ *Itachi Uchiha*\n\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: buffer, caption: `⛩️ *Itachi Uchiha*\n\n> *${getBotName()}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
@@ -93,7 +96,7 @@ module.exports = [
             await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
             try {
                 const buffer = await fetchMedia('https://abhi-api.vercel.app/api/anime/naruto');
-                await sock.sendMessage(jid, { image: buffer, caption: '⛩️ *Naruto Uzumaki*\n\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: buffer, caption: `⛩️ *Naruto Uzumaki*\n\n> *${getBotName()}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
@@ -111,7 +114,7 @@ module.exports = [
             await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
             try {
                 const buffer = await fetchMedia('https://abhi-api.vercel.app/api/anime/nezuko');
-                await sock.sendMessage(jid, { image: buffer, caption: '⛩️ *Nezuko Kamado*\n\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: buffer, caption: `⛩️ *Nezuko Kamado*\n\n> *${getBotName()}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
@@ -129,7 +132,7 @@ module.exports = [
             await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
             try {
                 const buffer = await fetchMedia('https://abhi-api.vercel.app/api/anime/miku');
-                await sock.sendMessage(jid, { image: buffer, caption: '⛩️ *Hatsune Miku*\n\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: buffer, caption: `⛩️ *Hatsune Miku*\n\n> *${getBotName()}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
@@ -148,7 +151,7 @@ module.exports = [
             await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
             try {
                 const buffer = await fetchMedia('https://abhi-api.vercel.app/api/anime/itori');
-                await sock.sendMessage(jid, { image: buffer, caption: '⛩️ *Itori*\n\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: buffer, caption: `⛩️ *Itori*\n\n> *${getBotName()}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
@@ -166,7 +169,7 @@ module.exports = [
             await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
             try {
                 const buffer = await fetchMedia('https://abhi-api.vercel.app/api/anime/loli');
-                await sock.sendMessage(jid, { image: buffer, caption: '⛩️ *Anime Loli*\n\n> *KIRA X MD*' }, { quoted: msg });
+                await sock.sendMessage(jid, { image: buffer, caption: `⛩️ *Anime Loli*\n\n> *${getBotName()}*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });

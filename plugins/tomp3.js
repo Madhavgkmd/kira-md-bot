@@ -64,9 +64,9 @@ module.exports = {
                     .toFormat("mp3")
                     .audioBitrate(128)
                     .outputOptions([
-                        '-metadata', 'title=KIRA X MD', 
-                        '-metadata', 'artist=Madhav',    
-                        '-metadata', 'album=KIRA Bot'    
+                        '-metadata', `title=${global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD'}`, 
+'-metadata', `artist=${global.config?.OWNER_NAME || process.env.OWNER_NAME || 'Owner'}`,    
+'-metadata', `album=${global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD'}`
                     ])
                     .on("end", () => {
                         console.log("✅ [toMP3] Conversion finished!");

@@ -8,7 +8,7 @@ const api = axios.create({
     headers: { 'User-Agent': 'Mozilla/5.0' }
 });
 
-const WATERMARK = `\n\n> *KIRA X MD*`;
+const WATERMARK = `\n\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
 const TMDB_API_KEY = '23a935477fba7e0af118d31923dab5d0';
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';

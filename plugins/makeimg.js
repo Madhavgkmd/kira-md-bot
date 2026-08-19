@@ -43,7 +43,7 @@ module.exports = {
             // ഫോട്ടോ മെസ്സേജ് ആയി അയക്കുന്നു
             await sock.sendMessage(jid, {
                 image: imageBuffer,
-                caption: `🎨 *Prompt:* ${prompt}\n\n> *KIRA X MD*`
+                caption: `🎨 *Prompt:* ${prompt}\n\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`
             }, { quoted: msg });
 
             // ലോഡിങ് മെസ്സേജ് അപ്ഡേറ്റ് ചെയ്യുന്നു

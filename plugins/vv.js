@@ -26,9 +26,9 @@ module.exports = {
 
             // വ്യൂ വൺസ് ഡാറ്റ എടുക്കുന്നു (v1, v2, v2Extension സപ്പോർട്ട്)
             const viewOnce = quoted.viewOnceMessage?.message ||
-                             quoted.viewOnceMessageV2?.message ||
-                             quoted.viewOnceMessageV2Extension?.message || 
-                             quoted;
+                           quoted.viewOnceMessageV2?.message ||
+                           quoted.viewOnceMessageV2Extension?.message || 
+                           quoted;
 
             const media = viewOnce.imageMessage || viewOnce.videoMessage;
 
@@ -56,16 +56,19 @@ module.exports = {
                 buffer = Buffer.concat([buffer, chunk]);
             }
 
+            // ഒറിജിനൽ വ്യൂ വൺസ് മെസ്സേജിൽ ക്യാപ്ഷൻ ഉണ്ടെങ്കിൽ അത് എടുക്കുന്നു (വാട്ടർമാർക്കുകൾ ഇല്ല)
+            const originalCaption = media.caption || "";
+
             if (type === "image") {
                 await sock.sendMessage(
                     jid,
-                    { image: buffer, caption: "*🎌 KIRA X MD VIEW ONCE 🎌*" },
+                    { image: buffer, caption: originalCaption },
                     { quoted: msg }
                 );
             } else {
                 await sock.sendMessage(
                     jid,
-                    { video: buffer, caption: "*🎌 KIRA X MD VIEW ONCE 🎌*" },
+                    { video: buffer, caption: originalCaption },
                     { quoted: msg }
                 );
             }

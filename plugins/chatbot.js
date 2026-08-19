@@ -1,8 +1,8 @@
-// plugins/chatbot.js - KIRA X MD (Human-like Safe & Fast Speed)
+// plugins/chatbot.js - KIRA X MD (Dynamic Bot Name & Fast Speed)
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config(); // 🔥 .env ഫയൽ ആക്സസ് ചെയ്യാൻ
+require('dotenv').config();
 
 const dbPath = path.join(__dirname, '../chatbot_db.json');
 let chatDB = { dms: false, groups: false, chats: {} };
@@ -26,7 +26,9 @@ if (!global.chatHistory) {
     global.chatHistory = {};
 }
 
-// 🔥 .env ഫയലിൽ കൊടുത്ത കീകൾ ഇവിടെ ഓട്ടോമാറ്റിക് ആയി എടുക്കും! (GitHub ബ്ലോക്ക് ചെയ്യില്ല)
+// ─────────────────────────────────────
+// KEYS
+// ─────────────────────────────────────
 const envGeminiKeys = process.env.GEMINI_API_KEYS || "";
 const GEMINI_KEY = envGeminiKeys ? envGeminiKeys.split(',')[0] : "PUT_YOUR_GEMINI_KEY_HERE";
 
@@ -72,10 +74,14 @@ module.exports = {
 
                 if (!global.chatHistory[autoJid]) global.chatHistory[autoJid] = [];
                 
-                let historyText = global.chatHistory[autoJid].map(h => `${h.role === 'user' ? 'User' : 'Kira'}: ${h.content}`).join("\n");
+                let historyText = global.chatHistory[autoJid].map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join("\n");
                 let aiReply = null;
 
-                const promptText = `You are KIRA AI, a smart WhatsApp assistant created by Madhav. You love anime. STRICT LANGUAGE RULE: Reply in the EXACT SAME LANGUAGE as user. If English, reply in English. If Malayalam, reply in pure Malayalam script. Be friendly and casual.\n\nChat History:\n${historyText}\n\nUser: ${textMessage}\nKira:`;
+                // 🔥 Dynamic Prompt Setup
+                const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+                const ownerName = global.config?.OWNER_NAME || process.env.OWNER_NAME || 'the owner';
+
+                const promptText = `You are an AI assistant named ${botName}, created by ${ownerName}. STRICT LANGUAGE RULE: Reply in the EXACT SAME LANGUAGE as user. If English, reply in English. If Malayalam, reply in pure Malayalam script. Be friendly and casual.\n\nChat History:\n${historyText}\n\nUser: ${textMessage}\nAssistant:`;
 
                 // ⚡ API FETCHING (Background)
                 try {

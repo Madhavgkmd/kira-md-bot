@@ -51,9 +51,11 @@ module.exports = {
             return await sock.sendMessage(jid, { text: "❌ *That's not a sticker. Reply to a sticker only.*" }, { quoted: msg });
         }
 
-        // Default fallbacks
-        let packName = "KIRA X MD";
-        let authorName = "Kira";
+        // 🔥 Dynamic Bot Name Helper
+        const botName = typeof getBotName === 'function' ? getBotName() : (global.config?.BOT_NAME || process.env.BOT_NAME || "KIRA X MD");
+
+        let packName = botName;
+        let authorName = botName;
         
         // 🧠 Smart Argument Parser
         if (args && args.length > 0) {
@@ -62,10 +64,10 @@ module.exports = {
             if (fullText.includes("|")) {
                 const textArgs = fullText.split("|");
                 packName = textArgs[0].trim();
-                authorName = textArgs[1] ? textArgs[1].trim() : "Kira";
+                authorName = textArgs[1] ? textArgs[1].trim() : botName;
             } else {
                 packName = fullText.trim();
-                authorName = "Kira"; 
+                authorName = botName; 
             }
         }
 
@@ -74,7 +76,6 @@ module.exports = {
 
         let inputPath;
         try {
-            // ⚠️ Error ഉണ്ടാക്കിയിരുന്ന reuploadRequest ഒഴിവാക്കി കൃത്യമായ ഫോർമാറ്റ് കൊടുത്തു
             const buffer = await downloadMediaMessage(
                 { message: mediaMsg },
                 "buffer",

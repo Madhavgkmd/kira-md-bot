@@ -1,8 +1,7 @@
 // plugins/hentai.js – KIRA X MD (NSFW Video Downloader – Never Fails)
 const axios = require('axios');
 
-const WATERMARK = `\n\n──────────────\n> *KIRA X MD*`;
-
+const WATERMARK = `\n\n──────────────\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
 // ─── HARDCODED FALLBACK (from your JSON) ──────────────
 const FALLBACK_VIDEOS = [
     {

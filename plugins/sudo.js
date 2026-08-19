@@ -80,7 +80,7 @@ module.exports = [
                 return await sock.sendMessage(jid, { text: 'ℹ️ *Sudo list is currently empty.*' }, { quoted: msg });
             }
 
-            let text = `👑 *KIRA X MD SUDO LIST* 👑\n\n`;
+            let text = `👑 *${global.config?.BOT_NAME || 'KIRA X MD'} SUDO LIST* 👑\n\n`;
             sudoList.forEach((num, index) => {
                 text += `${index + 1}. @${num.split('@')[0]}\n`;
             });

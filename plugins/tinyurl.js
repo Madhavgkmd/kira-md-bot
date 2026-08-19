@@ -29,12 +29,8 @@ module.exports = {
 
             if (!shortUrl) throw new Error("Could not shorten the URL");
 
-            let formatMsg = `🔗 *URL SHORTENED* 🔗\n\n`;
-            formatMsg += `*Original:* ${urlToShorten}\n`;
-            formatMsg += `*Short URL:* ${shortUrl}\n\n`;
-            formatMsg += `> *KIRA X MD*`;
-
-            await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
+            // വെറും ഷോർട്ട് ലിങ്ക് മാത്രം റിപ്ലൈ ആയി അയക്കുന്നു (വാട്ടർമാർക്കോ അധിക വരികളോ ഇല്ല)
+            await sock.sendMessage(jid, { text: shortUrl }, { quoted: msg });
             
             // ✅ സക്സസ് റിയാക്ഷൻ
             await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });

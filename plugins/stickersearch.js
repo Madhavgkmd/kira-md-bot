@@ -19,7 +19,7 @@ async function addMetadata(webpFilePath, packName, authorName) {
         const exif = {
             "sticker-pack-id": "kira-x-md-sticker",
             "sticker-pack-name": packName || "KIRA X MD",
-            "sticker-author-name": authorName || "Kira",
+            "sticker-author-name": authorName || "User",
             "emojis": ["🔎", "✨"]
         };
         const jsonBuff = Buffer.from(JSON.stringify(exif), "utf-8");
@@ -49,6 +49,10 @@ module.exports = {
         await sock.sendMessage(jid, { react: { text: "🔍", key: msg.key } });
 
         try {
+            // 🔥 Dynamic PackName & Author Helper from .env
+            const packName = global.config?.PACK_NAME || process.env.PACK_NAME || 'KIRA X MD';
+            const authorName = global.config?.AUTHOR_NAME || process.env.AUTHOR_NAME || msg.pushName || 'User';
+
             // ─── Search GIPHY Stickers ───
             const url = `https://api.giphy.com/v1/stickers/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=10&rating=g`;
             const response = await axios.get(url, { timeout: 15000 });
@@ -93,11 +97,11 @@ module.exports = {
                     .save(outputPath);
             });
 
-            await addMetadata(outputPath, "KIRA X MD", "Kira");
+            await addMetadata(outputPath, packName, authorName);
             await sock.sendMessage(jid, { sticker: fs.readFileSync(outputPath) }, { quoted: msg });
 
-            fs.unlinkSync(inputPath);
-            fs.unlinkSync(outputPath);
+            if (fs.existsSync(inputPath)) fs.unlinkSync(inputpath = inputPath);
+            if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
         } catch (e) {

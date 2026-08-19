@@ -8,7 +8,10 @@ module.exports = {
         const pushname = msg.pushName || "User";
         const prefix = process.env.PREFIX || ".";
         
-        // 🔥 തിരുത്തിയത്: process.env.MODE മാറ്റി global.botMode ആക്കി!
+        // 🔥 Dynamic Bot & Owner Name
+        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || "KIRA X MD";
+        const ownerName = global.config?.OWNER_NAME || process.env.OWNER_NAME || "Madhav";
+        
         const mode = global.botMode || "public"; 
         
         // Uptime Calculation
@@ -27,10 +30,11 @@ module.exports = {
             categories[cat].push(`${prefix}${cmd.name}`);
         }
 
-        // 🔥 Horror Glitch Menu Design
-        let menu = `🩸 𝕶 𝕴 𝕽 𝕬  𝖃  𝕸 𝕯 🩸\n\n`;
+        // 🔥 Horror Glitch Menu Design with Owner Added
+        let menu = `🩸 ${botName.split('').join(' ')} 🩸\n\n`;
         menu += `╔══════════════ ♱\n`;
         menu += `╠ ♱ 𝔘𝔰𝔢𝔯 : ${pushname}\n`;
+        menu += `╠ ♱ 𝔒𝔴𝔫𝔢𝔯 : ${ownerName}\n`;
         menu += `╠ ♱ 𝔓𝔯𝔢𝔣𝔦𝔵 : ${prefix}\n`;
         menu += `╠ ♱ 𝔐𝔬𝔡𝔢 : ${mode.toUpperCase()}\n`;
         menu += `╠ ♱ 𝔘𝔭𝔱𝔦𝔪𝔢 : ${uptimeText}\n`;
@@ -45,9 +49,14 @@ module.exports = {
             menu += `╚══════════════ ♱\n\n`;
         }
 
+        menu += `> *${botName}*`;
+
+       // 🔥 Dynamic Menu Image from .env / global config
+        const menuImage = global.config?.MENU_IMAGE || process.env.MENU_IMAGE || "https://files.catbox.moe/22x0j5.jpeg";
+
         // Send Message with Image
         await sock.sendMessage(jid, {
-            image: { url: "https://files.catbox.moe/22x0j5.jpeg" },
+            image: { url: menuImage },
             caption: menu
         }, { quoted: msg });
     }

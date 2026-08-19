@@ -37,7 +37,7 @@ module.exports = {
             caption += `🫂 *Following:* ${data.following || 0}\n`;
             caption += `📁 *Public Repos:* ${data.public_repos || 0}\n`;
             caption += `🔗 *Link:* ${data.html_url || `https://github.com/${data.login}`}\n\n`;
-            caption += `> *KIRA X MD*`;
+            caption += `> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
 
             const avatarUrl = data.avatar_url || 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png';
 

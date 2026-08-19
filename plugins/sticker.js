@@ -1,4 +1,4 @@
-// plugins/sticker.js - KIRA X MD (Fixed & Full Ratio Fit)
+// plugins/sticker.js - KIRA X MD (Dynamic PackName Fix)
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const sharp = require("sharp");
 const ffmpeg = require("fluent-ffmpeg");
@@ -18,8 +18,8 @@ async function addMetadata(webpFilePath, packName, authorName) {
 
         const exifJSON = {
             "sticker-pack-id": "kira-x-md-sticker",
-            "sticker-pack-name": packName || "KIRA X MD",
-            "sticker-author-name": authorName || "Achu\nWa.me/919188252308",
+            "sticker-pack-name": packName || "User",
+            "sticker-author-name": authorName || "KIRA X MD",
             "emojis": ["🔥", "✨"]
         };
 
@@ -62,14 +62,21 @@ module.exports = {
             return await sock.sendMessage(jid, { text: "⚠️ *Only images and videos are supported!*" }, { quoted: msg });
         }
 
-        let packName = "KIRA X MD";
-        let authorName = "Achu\nWa.me/919188252308";
+        // 🔥 Dynamic PackName & Author Setup from .env / Config
+        const senderName = msg.pushName || "User";
+        const defaultPack = global.config?.PACK_NAME || process.env.PACK_NAME || "KIRA X MD";
+        const defaultAuthor = global.config?.AUTHOR_NAME || process.env.AUTHOR_NAME || senderName;
+        
+        let packName = defaultPack;
+        let authorName = defaultAuthor;
+        
+        // കസ്റ്റം പേര് കൊടുക്കാൻ (ഉദാഹരണം: .s MyPack | MyAuthor)
         if (args && args.length > 0) {
             const fullText = args.join(" ");
             if (fullText.includes("|")) {
                 const parts = fullText.split("|");
                 packName = parts[0].trim();
-                authorName = parts[1] ? parts[1].trim() : "Achu\nWa.me/919188252308";
+                authorName = parts[1] ? parts[1].trim() : defaultAuthor;
             } else {
                 packName = fullText.trim();
             }
@@ -97,7 +104,6 @@ module.exports = {
                 outputPath = path.join(tempDir, `out_${Date.now()}.webp`);
                 fs.writeFileSync(inputPath, buffer);
 
-                // 🔥 Image Aspect Ratio Fix: 'contain' with transparent background
                 await sharp(inputPath)
                     .resize(512, 512, { 
                         fit: "contain", 
@@ -110,7 +116,6 @@ module.exports = {
                 outputPath = path.join(tempDir, `out_${Date.now()}.webp`);
                 fs.writeFileSync(inputPath, buffer);
 
-                // 🔥 Video Aspect Ratio Fix: scale and pad with transparency
                 await new Promise((resolve, reject) => {
                     ffmpeg(inputPath)
                         .inputOptions(["-t", "10"])

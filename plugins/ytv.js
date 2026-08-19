@@ -77,7 +77,7 @@ module.exports = {
 
             await sock.sendMessage(jid, {
                 video: { url: video },
-                caption: `${title}\n\n> *Downloaded by KIRA X MD*`
+                caption: `${title}` // 🔥 Watermark removed, only Original Title
             }, { quoted: msg });
 
             await sock.sendMessage(jid, {
@@ -86,9 +86,12 @@ module.exports = {
 
         } catch (err) {
             console.error("YTV error:", err);
+            
+            // 🔥 CUSTOM ERROR MESSAGE LIKE INSTA
             await sock.sendMessage(jid, {
-                text: `❌ *Download Failed*\n\n${err.message || "Please try again later."}`
+                text: `❌ *Something error please try again later*`
             }, { quoted: msg });
+            
             await sock.sendMessage(jid, {
                 react: { text: "❌", key: msg.key }
             });

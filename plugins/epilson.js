@@ -50,7 +50,7 @@ module.exports = {
                 formatMsg += `\n`;
             }
 
-            formatMsg += `> *KIRA X MD*`;
+           formatMsg += `> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
 
             await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });

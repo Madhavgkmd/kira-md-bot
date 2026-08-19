@@ -1,4 +1,4 @@
-// plugins/devotion.js - KIRA X MD (Gita, Bible, Quran & Epic Quotes)
+// plugins/devotion.js - KIRA X MD (Gita, Bible, Quran & Epic Quotes - Dynamic Name)
 const axios = require('axios');
 const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' };
 
@@ -232,6 +232,8 @@ const RAMAYANA_QUOTES = [
     "Like Rama, choose dharma; like Hanuman, choose devotion; like Sita, choose inner strength."
 ];
 
+// 🔥 Dynamic Bot Name Helper
+const getBotName = () => global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
 
 module.exports = [
     // ==========================================
@@ -250,7 +252,7 @@ module.exports = [
                 const randomQuote = GITA_QUOTES[Math.floor(Math.random() * GITA_QUOTES.length)]; 
                 
                 await sock.sendMessage(jid, { 
-                    text: `📜 *Bhagavad Gita Quote*\n\n"${randomQuote.quote}"\n\n— _${randomQuote.speaker}_ (${randomQuote.verse})\n\n> _Shared by KIRA X MD_` 
+                    text: `📜 *Bhagavad Gita Quote*\n\n"${randomQuote.quote}"\n\n— _${randomQuote.speaker}_ (${randomQuote.verse})\n\n> _Shared by ${getBotName()}_` 
                 }, { quoted: msg });
                 
                 await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
@@ -269,12 +271,11 @@ module.exports = [
             try {
                 await sock.sendMessage(jid, { react: { text: "🦚", key: msg.key } });
                 
-                // ഫിൽറ്റർ ചെയ്ത് കൃഷ്ണൻ പറഞ്ഞ കോട്ടുകൾ മാത്രം എടുക്കുന്നു
                 const krishnaOnlyQuotes = GITA_QUOTES.filter(q => q.speaker === "Krishna");
                 const randomQuote = krishnaOnlyQuotes[Math.floor(Math.random() * krishnaOnlyQuotes.length)]; 
                 
                 await sock.sendMessage(jid, { 
-                    text: `🦚 *Lord Krishna Says:*\n\n"${randomQuote.quote}"\n\n— _(${randomQuote.verse})_\n\n> _Shared by KIRA X MD_` 
+                    text: `🦚 *Lord Krishna Says:*\n\n"${randomQuote.quote}"\n\n— _(${randomQuote.verse})_\n\n> _Shared by ${getBotName()}_` 
                 }, { quoted: msg });
                 
                 await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
@@ -300,7 +301,7 @@ module.exports = [
                 const randomQuote = RAMAYANA_QUOTES[Math.floor(Math.random() * RAMAYANA_QUOTES.length)]; 
                 
                 await sock.sendMessage(jid, { 
-                    text: `🏹 *Ramayana Quote*\n\n"${randomQuote}"\n\n> _Shared by KIRA X MD_` 
+                    text: `🏹 *Ramayana Quote*\n\n"${randomQuote}"\n\n> _Shared by ${getBotName()}_` 
                 }, { quoted: msg });
                 
                 await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
@@ -335,7 +336,7 @@ module.exports = [
                     const title = res.data.translation || res.data.name;
                     const summaryText = res.data.summary.en; 
                     await sock.sendMessage(jid, { 
-                        text: `📖 *Bhagavad Gita - Chapter ${chapterNum}*\n*${title}*\n\n${summaryText}\n\n> _Shared by KIRA X MD_` 
+                        text: `📖 *Bhagavad Gita - Chapter ${chapterNum}*\n*${title}*\n\n${summaryText}\n\n> _Shared by ${getBotName()}_` 
                     }, { quoted: msg });
                     await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
                 }
@@ -367,7 +368,7 @@ module.exports = [
                     const translation = res.data.siva ? res.data.siva.et : res.data.purohit.et; 
                     
                     await sock.sendMessage(jid, { 
-                        text: `📜 *Bhagavad Gita - ${args[0]}:${args[1]}*\n\n${shlok}\n\n*Translation:*\n${translation}\n\n> _Shared by KIRA X MD_` 
+                        text: `📜 *Bhagavad Gita - ${args[0]}:${args[1]}*\n\n${shlok}\n\n*Translation:*\n${translation}\n\n> _Shared by ${getBotName()}_` 
                     }, { quoted: msg });
                     await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
                 }
@@ -404,7 +405,7 @@ module.exports = [
                     const verseText = res.data.data.text;
                     
                     await sock.sendMessage(jid, { 
-                        text: `📖 *The Noble Quran*\n\n*Surah ${surahName} (${args[0]}), Ayat ${args[1]}*\n"${verseText}"\n\n> _Shared by KIRA X MD_` 
+                        text: `📖 *The Noble Quran*\n\n*Surah ${surahName} (${args[0]}), Ayat ${args[1]}*\n"${verseText}"\n\n> _Shared by ${getBotName()}_` 
                     }, { quoted: msg });
                     await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
                 }
@@ -438,7 +439,7 @@ module.exports = [
                     const versesText = res.data.data.ayahs.map(v => `*${v.numberInSurah}.* ${v.text}`).join("\n\n");
                     
                     await sock.sendMessage(jid, { 
-                        text: `📖 *The Noble Quran - Surah ${surahName}*\n\n${versesText}\n\n> _Shared by KIRA X MD_` 
+                        text: `📖 *The Noble Quran - Surah ${surahName}*\n\n${versesText}\n\n> _Shared by ${getBotName()}_` 
                     }, { quoted: msg });
                     await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
                 }
@@ -475,7 +476,7 @@ module.exports = [
                 
                 if (res.data && res.data.text) {
                     await sock.sendMessage(jid, { 
-                        text: `📖 *Holy Bible (KJV)*\n\n*${match[1].toUpperCase()} ${chapter}:${verse}*\n"${res.data.text}"\n\n> _Shared by KIRA X MD_` 
+                        text: `📖 *Holy Bible (KJV)*\n\n*${match[1].toUpperCase()} ${chapter}:${verse}*\n"${res.data.text}"\n\n> _Shared by ${getBotName()}_` 
                     }, { quoted: msg });
                     await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
                 }
@@ -514,7 +515,7 @@ module.exports = [
                 
                 if (versesText) {
                     await sock.sendMessage(jid, { 
-                        text: `📖 *Holy Bible - ${match[1].toUpperCase()} Chapter ${chapter}*\n\n${versesText}\n\n> _Shared by KIRA X MD_` 
+                        text: `📖 *Holy Bible - ${match[1].toUpperCase()} Chapter ${chapter}*\n\n${versesText}\n\n> _Shared by ${getBotName()}_` 
                     }, { quoted: msg });
                     await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
                 }

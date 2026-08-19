@@ -15,20 +15,13 @@ module.exports = {
             return sock.sendMessage(
                 msg.key.remoteJid,
                 {
-                    text: "❌ Reply to a sticker."
-                }
+                    text: "❌ Please reply to a sticker."
+                },
+                { quoted: msg }
             );
         }
 
         try {
-
-            const status = await sock.sendMessage(
-                msg.key.remoteJid,
-                {
-                    text: "⚡ Converting..."
-                }
-            );
-
             const mediaMsg = {
                 key: {
                     remoteJid: msg.key.remoteJid
@@ -42,31 +35,24 @@ module.exports = {
                 .png()
                 .toBuffer();
 
+            // ക്യാപ്ഷൻ ഒന്നുമില്ലാതെ ഇമേജ് മാത്രം അയക്കുന്നു
             await sock.sendMessage(
                 msg.key.remoteJid,
                 {
-                    image: imageBuffer,
-                    caption: "🖼️ Converted by KIRA X MD"
-                }
-            );
-
-            await sock.sendMessage(
-                msg.key.remoteJid,
-                {
-                    text: "✅ Converted",
-                    edit: status.key
-                }
+                    image: imageBuffer
+                },
+                { quoted: msg }
             );
 
         } catch (err) {
-
             console.log(err);
 
             await sock.sendMessage(
                 msg.key.remoteJid,
                 {
                     text: "❌ Conversion failed."
-                }
+                },
+                { quoted: msg }
             );
         }
     }

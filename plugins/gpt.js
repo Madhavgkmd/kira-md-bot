@@ -44,11 +44,11 @@ module.exports = {
                 jid,
                 {
                     text:
-`🩸 *KIRA AI*
+`🩸 *AI*
 
 ${reply}
 
-> *Powered by KIRA X MD*`
+> *Powered by ${global.config?.BOT_NAME || 'KIRA X MD'}*`
                 },
                 { quoted: msg }
             );

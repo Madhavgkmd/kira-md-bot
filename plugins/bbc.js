@@ -10,6 +10,9 @@ module.exports = {
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
         
+        // 🔥 Dynamic Bot Name
+        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        
         // യൂസർ എത്ര വാർത്ത വേണമെന്ന് ചോദിച്ചാൽ അത് കൊടുക്കാൻ, ഇല്ലെങ്കിൽ 5 എണ്ണം കൊടുക്കും
         let limit = parseInt(args[0]);
         if (isNaN(limit) || limit < 1 || limit > 10) {
@@ -46,7 +49,8 @@ module.exports = {
                 formatMsg += `┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n`;
             }
 
-            formatMsg += `\n> *KIRA X MD*`;
+            // 🔥 വാട്ടർമാർക്ക് ഡൈനാമിക് ആക്കി
+            formatMsg += `\n> *${botName}*`;
 
             // ആദ്യത്തെ വാർത്തയുടെ ഫോട്ടോ വെച്ച് കിടിലൻ പ്രീമിയം ലുക്കിൽ അയക്കുന്നു
             const firstThumbnail = results[0]?.thumbnail || "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/BBC_News_2019.svg/1200px-BBC_News_2019.svg.png";

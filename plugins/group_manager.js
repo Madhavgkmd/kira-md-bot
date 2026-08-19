@@ -330,7 +330,7 @@ module.exports = [
             
             if (!isOwner) return await sock.sendMessage(jid, { text: '❌ *Only my Owner can command me to leave!*' }, { quoted: msg });
 
-            await sock.sendMessage(jid, { text: '👋 *Goodbye everyone! KIRA X MD is leaving...*' });
+            await sock.sendMessage(jid, { text: `👋 *Goodbye everyone! ${global.config?.BOT_NAME || 'KIRA X MD'} is leaving...*` });
             await sock.groupLeave(jid);
         }
     }

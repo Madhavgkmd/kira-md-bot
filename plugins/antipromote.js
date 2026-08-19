@@ -423,7 +423,7 @@ async function initAntiPromoteListener(sock) {
         }
     );
 
-    console.log('🛡️ KIRA Anti-Promote/Anti-Demote listener initialized.');
+console.log(`🛡️ ${global.config?.BOT_NAME || 'KIRA X MD'} Anti-Promote/Anti-Demote listener initialized.`);
 }
 
 module.exports = [

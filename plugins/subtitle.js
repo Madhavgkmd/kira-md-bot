@@ -80,7 +80,7 @@ module.exports = {
             });
 
             text +=
-`> *Powered by KIRA X MD*`;
+`> *Powered by ${getBotName()}*`;
 
             await sock.sendMessage(
                 jid,

@@ -52,6 +52,9 @@ module.exports = {
         const uptime =
             format(process.uptime());
 
+        // 🔥 Dynamic Bot Name Helper
+        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+
         const apis = [
             "https://api-aswin-sparky.koyeb.app",
             "https://jerrycoder.oggyapi.workers.dev"
@@ -89,7 +92,7 @@ module.exports = {
             Date.now() - start;
 
         const text =
-`╭━━〔 🤖 KIRA X MD 〕
+`╭━━〔 🤖 ${botName} 〕
 ┃🟢 Status : Online
 ┃⚡ Ping : ${ping} ms
 ┃⏱️ Uptime : ${uptime}
@@ -112,7 +115,9 @@ module.exports = {
 ${apiText}
 
 🟢 Online APIs : ${online}
-🔴 Offline APIs : ${offline}`;
+🔴 Offline APIs : ${offline}
+
+> *${botName}*`;
 
         await sock.sendMessage(
             jid,

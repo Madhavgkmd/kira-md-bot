@@ -19,7 +19,7 @@ module.exports = {
             );
         }
 
-        let text = "📜 *KIRA X MD COMMAND LIST*\n\n";
+        let text = `📜 *${global.config?.BOT_NAME || 'KIRA X MD'} COMMAND LIST*\n\n`;
 
         for (const cmd of commands) {
             const name = cmd.name || "Unknown";

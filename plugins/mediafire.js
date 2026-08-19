@@ -44,7 +44,7 @@ module.exports = {
                 document: { url: downloadUrl },
                 mimetype: mimeType,
                 fileName: fileName,
-                caption: `📄 *File:* ${fileName}\n⚖️ *Size:* ${fileSize}\n\n> *KIRA X MD*`
+                caption: `📄 *File:* ${fileName}\n⚖️ *Size:* ${fileSize}\n\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`
             }, { quoted: msg });
 
             // സക്സസ് മെസ്സേജ് അപ്ഡേറ്റ് ചെയ്യുന്നു

@@ -34,7 +34,7 @@ module.exports = {
             if (!quoteText) throw new Error("Could not extract quote text.");
 
             // 💬 കിടിലൻ ഫോർമാറ്റിൽ മെസ്സേജ് ഡിസൈൻ ചെയ്യുന്നു
-            const formatMsg = `💬 *${quoteText}*\n\n~ _${author}_\n\n> *KIRA X MD*`;
+            const formatMsg = `💬 *${quoteText}*\n\n~ _${author}_\n\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
 
             // മെസ്സേജ് അയക്കുന്നു
             await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });

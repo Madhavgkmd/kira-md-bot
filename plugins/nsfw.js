@@ -1,7 +1,7 @@
 // plugins/nsfw.js – KIRA X MD (NSFW Video Downloader)
 const axios = require('axios');
 
-const WATERMARK = `\n\n──────────────\n> *KIRA X MD*`;
+const WATERMARK = `\n\n──────────────\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
 
 // ─── Cache for list messages ─────────────────────────────
 const listCache = {}; // key: message ID -> { jid, videos, timestamp }
