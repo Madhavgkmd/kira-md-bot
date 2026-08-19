@@ -12,7 +12,7 @@ module.exports = {
         const prefix = process.env.PREFIX || '.';
         
         // 🔥 Dynamic Bot Name Helper
-        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
         
         // യൂസർ എന്താണ് ചെയ്യാൻ ഉദ്ദേശിക്കുന്നത് എന്ന് മനസ്സിലാക്കാൻ
         const action = args[0]?.toLowerCase();

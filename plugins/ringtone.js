@@ -26,7 +26,7 @@ module.exports = {
 
         try {
             // 🔥 Dynamic Bot Name Helper
-            const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+            const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
 
             // 1. API-ൽ നിന്ന് പാട്ട് തിരയുന്നു
             const apiUrl = `https://www.movanest.xyz/v2/ringtone?title=${encodeURIComponent(query)}`;

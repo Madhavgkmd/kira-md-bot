@@ -15,7 +15,7 @@ module.exports = {
         const sender = msg.key.fromMe ? sock.user.id.split(':') + '@s.whatsapp.net' : (msg.key.participant || msg.key.remoteJid);
         
         // Bot details
-        const botName = process.env.BOT_NAME || 'KIRA X MD';
+        const botName = global.getBotName(botNumber) || 'KIRA X MD';
         const ownerName = process.env.OWNER_NAME || 'Madhav'; 
         const mode = process.env.MODE === 'private' ? 'Private' : 'Public';
         const uptime = formatUptime(process.uptime() * 1000);

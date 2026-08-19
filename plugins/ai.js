@@ -35,7 +35,7 @@ module.exports = {
             );
 
             // 🔥 Dynamic Bot Name
-            const botName = global.config?.BOT_NAME || process.env.BOT_NAME || "KIRA X MD";
+            const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || "KIRA X MD";
 
             const prompt = `
 You are a smart, friendly and natural AI assistant for ${botName}.

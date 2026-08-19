@@ -52,7 +52,7 @@ module.exports = {
         }
 
         // 🔥 Dynamic Bot Name Helper
-        const botName = typeof getBotName === 'function' ? getBotName() : (global.config?.BOT_NAME || process.env.BOT_NAME || "KIRA X MD");
+        const botName = typeof getBotName === 'function' ? getBotName() : (global.config?.BOT_NAME || global.getBotName(botNumber) || "KIRA X MD");
 
         let packName = botName;
         let authorName = botName;

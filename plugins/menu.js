@@ -9,7 +9,7 @@ module.exports = {
         const prefix = process.env.PREFIX || ".";
         
         // 🔥 Dynamic Bot & Owner Name
-        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || "KIRA X MD";
+        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || "KIRA X MD";
         const ownerName = global.config?.OWNER_NAME || process.env.OWNER_NAME || "Madhav";
         
         const mode = global.botMode || "public"; 

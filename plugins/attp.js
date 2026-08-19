@@ -103,7 +103,7 @@ module.exports = {
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
         // 🔥 Dynamic Watermark Setup
-        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
         const senderName = msg.pushName || "User";
 
         let tempPath;

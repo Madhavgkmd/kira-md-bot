@@ -9,7 +9,7 @@ module.exports = {
         const text = args.join(" ").trim();
         
         // 🔥 Dynamic Bot Name
-        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
 
         if (!text) {
             return sock.sendMessage(

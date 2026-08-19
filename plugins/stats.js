@@ -53,7 +53,7 @@ module.exports = {
             format(process.uptime());
 
         // 🔥 Dynamic Bot Name Helper
-        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
 
         const apis = [
             "https://api-aswin-sparky.koyeb.app",

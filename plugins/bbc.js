@@ -11,7 +11,7 @@ module.exports = {
         const jid = msg.key.remoteJid;
         
         // 🔥 Dynamic Bot Name
-        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
         
         // യൂസർ എത്ര വാർത്ത വേണമെന്ന് ചോദിച്ചാൽ അത് കൊടുക്കാൻ, ഇല്ലെങ്കിൽ 5 എണ്ണം കൊടുക്കും
         let limit = parseInt(args[0]);

@@ -53,7 +53,7 @@ module.exports = [
 
             await sock.sendMessage(jid, { text: '⏳ Generating...' }, { quoted: msg });
             
-            const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+            const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
             const url = `https://eliteprotech-apis.zone.id/flux?prompt=${encodeURIComponent(args.join(' '))}`;
             
             try {

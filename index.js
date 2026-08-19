@@ -23,7 +23,7 @@ const { getSettings } = require("./lib/database");
 // DYNAMIC CONFIG HELPERS & RESET FUNCTION
 // ============================================================
 function getBotName() {
-    return global.config?.BOT_NAME || process.env.BOT_NAME || "KIRA X MD";
+    return global.config?.BOT_NAME || global.getBotName(botNumber) || "KIRA X MD";
 }
 
 function getPackName() {

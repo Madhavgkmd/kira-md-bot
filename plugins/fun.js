@@ -18,7 +18,7 @@ module.exports = {
         const action = cmdName.startsWith(prefix) ? cmdName.slice(prefix.length) : cmdName;
 
         // 🔥 Dynamic Bot Name
-        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
 
         // ⏳ ലോഡിങ് റിയാക്ഷൻ
         await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });

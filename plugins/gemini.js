@@ -32,7 +32,7 @@ module.exports = {
 
         await sock.sendMessage(jid, { react: { text: "🧠", key: msg.key } });
 
-       const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA AI';
+       const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA AI';
 const ownerName = global.config?.OWNER_NAME || process.env.OWNER_NAME || 'the owner';
 
 const systemPrompt = `You are ${botName}, a smart WhatsApp assistant created by ${ownerName}. You love anime. STRICT LANGUAGE RULE: You must reply in the EXACT SAME LANGUAGE the user uses. If the user types in English (e.g., 'Hi', 'How are you'), reply ONLY in English. If the user types in Malayalam, reply in pure Malayalam script. Never force Malayalam unless the user initiates it. Be friendly and casual.`;

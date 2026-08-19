@@ -1,6 +1,8 @@
+// plugins/url.js - KIRA X MD (Media to Direct URL)
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const axios = require("axios");
 const FormData = require("form-data");
+const { getSettings } = require("../lib/database"); // ഡാറ്റാബേസ് സപ്പോർട്ടിനായി
 
 module.exports = {
     name: "url",
@@ -12,6 +14,12 @@ module.exports = {
     async execute(sock, msg) {
         const jid = msg.key.remoteJid;
         
+        // ബോട്ടിന്റെ പേര് എടുക്കാൻ (Independent Bot Name Support)
+        const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, "");
+        const config = getSettings(botNumber);
+        const botName = config?.botName || process.env.BOT_NAME || 'KIRA X MD';
+        const WATERMARK = `\n\n──────────────\n> *${botName}*`;
+        
         // Quoted message ഉണ്ടോ എന്ന് നോക്കുന്നു
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         
@@ -20,7 +28,7 @@ module.exports = {
 
         if (!isDirectMedia && !quoted) {
             await sock.sendMessage(jid, { react: { text: "⚠️", key: msg.key } });
-            return await sock.sendMessage(jid, { text: "⚠️ *Reply to an image/video/audio, or send media with .url caption!*" }, { quoted: msg });
+            return await sock.sendMessage(jid, { text: `⚠️ *Reply to an image/video/audio, or send media with .url caption!*` + WATERMARK }, { quoted: msg });
         }
 
         // Baileys-ന് ഡൗൺലോഡ് ചെയ്യാൻ പാകത്തിൽ മെസ്സേജ് ഫോർമാറ്റ് ചെയ്യുന്നു
@@ -34,7 +42,7 @@ module.exports = {
 
         if (!mediaType) {
             await sock.sendMessage(jid, { react: { text: "⚠️", key: msg.key } });
-            return await sock.sendMessage(jid, { text: "⚠️ *Valid media not found!*" }, { quoted: msg });
+            return await sock.sendMessage(jid, { text: `⚠️ *Valid media not found!*` + WATERMARK }, { quoted: msg });
         }
 
         const mime = mediaObj[mediaType]?.mimetype || '';
@@ -56,26 +64,30 @@ module.exports = {
             else if (mime.includes('video/mp4')) ext = 'mp4';
             else if (mime.includes('audio')) ext = 'mp3';
             else if (mime.includes('pdf')) ext = 'pdf';
+            else if (mime.includes('image')) ext = 'jpg';
+            else if (mime.includes('video')) ext = 'mp4';
 
-            // 3. Catbox-ലേക്ക് അപ്‌ലോഡ് ചെയ്യുന്നു
+            // 3. Catbox-ലേക്ക് കൃത്യമായ ഫോർമാറ്റിൽ അപ്‌ലോഡ് ചെയ്യുന്നു
             const form = new FormData();
             form.append("reqtype", "fileupload");
-            form.append("fileToUpload", mediaBuffer, { filename: `kira_media.${ext}` });
+            form.append("fileToUpload", mediaBuffer, { filename: `media_${Date.now()}.${ext}` });
 
             const res = await axios.post("https://catbox.moe/user/api.php", form, {
-                headers: form.getHeaders(),
-                maxContentLength: Infinity, // ഫയൽ സൈസ് എറർ ഒഴിവാക്കാൻ
+                headers: {
+                    ...form.getHeaders()
+                },
+                maxContentLength: Infinity,
                 maxBodyLength: Infinity,
-                timeout: 60000 // 60 സെക്കൻഡ് വരെ ടൈംഔട്ട്
+                timeout: 60000
             });
 
-            const link = res.data.trim();
+            const link = typeof res.data === 'string' ? res.data.trim() : '';
             if (!link.startsWith("http")) {
-                throw new Error(`Catbox Error: ${link}`); // Catbox റിജക്ട് ചെയ്താൽ എറർ പിടിക്കാൻ
+                throw new Error(`Catbox Error: Server rejected the file.`);
             }
 
-            // 4. റിസൾട്ട് അയക്കുന്നു 
-            await sock.sendMessage(jid, { text: link }, { quoted: msg });
+            // 4. റിസൾട്ട് അയക്കുന്നു (Watermark സഹിതം)
+            await sock.sendMessage(jid, { text: `🔗 *Direct URL Generated:*\n\n${link}` + WATERMARK }, { quoted: msg });
 
             // ✅ സക്സസ് റിയാക്ഷൻ
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
@@ -83,7 +95,7 @@ module.exports = {
         } catch (err) {
             console.error("URL UPLOAD ERROR:", err.message);
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            await sock.sendMessage(jid, { text: "❌ *Failed to generate link. Try again!*" }, { quoted: msg });
+            await sock.sendMessage(jid, { text: `❌ *Failed to generate link. Try again!*` + WATERMARK }, { quoted: msg });
         }
     }
 };

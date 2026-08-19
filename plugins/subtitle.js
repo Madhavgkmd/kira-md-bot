@@ -79,9 +79,8 @@ module.exports = {
 `;
             });
 
-            text +=
-`> *Powered by ${getBotName()}*`;
-
+            const botName = process.env.BOT_NAME || "KIRA X MD";
+            text += `\n\n> *Powered by ${botName}*`;
             await sock.sendMessage(
                 jid,
                 {

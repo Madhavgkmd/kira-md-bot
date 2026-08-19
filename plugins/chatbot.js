@@ -78,7 +78,7 @@ module.exports = {
                 let aiReply = null;
 
                 // 🔥 Dynamic Prompt Setup
-                const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+                const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
                 const ownerName = global.config?.OWNER_NAME || process.env.OWNER_NAME || 'the owner';
 
                 const promptText = `You are an AI assistant named ${botName}, created by ${ownerName}. STRICT LANGUAGE RULE: Reply in the EXACT SAME LANGUAGE as user. If English, reply in English. If Malayalam, reply in pure Malayalam script. Be friendly and casual.\n\nChat History:\n${historyText}\n\nUser: ${textMessage}\nAssistant:`;

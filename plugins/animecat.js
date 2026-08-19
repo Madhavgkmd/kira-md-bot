@@ -19,7 +19,7 @@ async function fetchMedia(url) {
 }
 
 // ഡൈനാമിക് ബോട്ട് നെയിം ഫംഗ്ഷൻ
-const getBotName = () => global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+const getBotName = () => global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
 
 module.exports = [
     // 1. ASTATUS

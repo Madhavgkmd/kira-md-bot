@@ -86,9 +86,9 @@ module.exports = {
                     fileName:
                         `${title}.mp4`,
                     caption:
-`${title}
+                        `${title}
 
-> *Downloaded by ${getBotName()}*`
+> *Downloaded by ${global.getBotName(botNumber)}*`,
                 },
                 { quoted: msg }
             );

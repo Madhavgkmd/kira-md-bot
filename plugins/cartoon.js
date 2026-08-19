@@ -11,7 +11,7 @@ module.exports = {
         const jid = msg.key.remoteJid;
         const text = args.join(" ").trim();
         // Dynamic bot name
-        const botName = global.config?.BOT_NAME || process.env.BOT_NAME || 'KIRA X MD';
+        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
 
         if (!text) {
             return await sock.sendMessage(
