@@ -1,10 +1,9 @@
-// plugins/tomp3.js - KIRA X MD (Anti-Hang Video to MP3)
+// plugins/tomp3.js - KIRA X MD (Anti-Hang Video to MP3 Fix)
 const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs");
 const path = require("path");
 
-// Windows-ൽ ആണെങ്കിൽ ffmpeg എടുക്കാൻ (Railway/Linux ആണെങ്കിൽ ഓട്ടോമാറ്റിക് ആയി എടുത്തോളും)
 const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
 if (fs.existsSync(ffmpegPath)) {
     ffmpeg.setFfmpegPath(ffmpegPath);
@@ -20,6 +19,9 @@ module.exports = {
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+
+        // 🔥 ബോട്ടിന്റെ നമ്പർ കൃത്യമായി കണ്ടുപിടിക്കുന്നു (എറർ ഫിക്സ് ചെയ്യാൻ)
+        const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
 
         // 🔥 Disappearing Message ആണെങ്കിലും കൃത്യമായി വീഡിയോ എടുക്കാൻ
         const videoMessage = quoted?.videoMessage || 
@@ -64,9 +66,9 @@ module.exports = {
                     .toFormat("mp3")
                     .audioBitrate(128)
                     .outputOptions([
-                        '-metadata', `title=${global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD'}`, 
-'-metadata', `artist=${global.config?.OWNER_NAME || process.env.OWNER_NAME || 'Owner'}`,    
-'-metadata', `album=${global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD'}`
+                        '-metadata', `title=${global.config?.BOT_NAME || global.getBotName?.(botNumber) || 'KIRA X MD'}`, 
+                        '-metadata', `artist=${global.config?.OWNER_NAME || process.env.OWNER_NAME || 'Owner'}`,    
+                        '-metadata', `album=${global.config?.BOT_NAME || global.getBotName?.(botNumber) || 'KIRA X MD'}`
                     ])
                     .on("end", () => {
                         console.log("✅ [toMP3] Conversion finished!");
