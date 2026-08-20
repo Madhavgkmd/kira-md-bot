@@ -1,33 +1,26 @@
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
 
 module.exports = {
     name: 'ringtone',
     alias: ['rt', 'rtone'],
     category: 'search',
     description: 'Download the best ringtone instantly',
-    usage: `${process.env.PREFIX || '.'}ringtone <song name>`,
+    usage: '.ringtone <song name>',
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
         const query = args.join(' ').trim();
 
         if (!query) {
-            return sock.sendMessage(jid, { 
-                text: `❌ *What ringtone do you want?*\n\n➤ Example: ${process.env.PREFIX || '.'}ringtone past lives` 
+            return await sock.sendMessage(jid, { 
+                text: `❌ *What ringtone do you want?*\n\n➤ Example: .ringtone past lives` 
             }, { quoted: msg });
         }
 
         // 🎧 ലോഡിങ് റിയാക്ഷൻ
         await sock.sendMessage(jid, { react: { text: "🎧", key: msg.key } });
 
-        let tempFilePath = null;
-
         try {
-            // 🔥 Dynamic Bot Name Helper
-            const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
-
             // 1. API-ൽ നിന്ന് പാട്ട് തിരയുന്നു
             const apiUrl = `https://www.movanest.xyz/v2/ringtone?title=${encodeURIComponent(query)}`;
             const res = await axios.get(apiUrl, { timeout: 15000 });
@@ -45,30 +38,23 @@ module.exports = {
 
             if (!audioUrl) throw new Error("Audio link missing.");
 
-            // 2. Axios ഉപയോഗിച്ച് ഓഡിയോ ഡൗൺലോഡ് ചെയ്ത് temp ഫോൾഡറിൽ ഫയൽ ആയി സേവ് ചെയ്യുന്നു (Single tick പ്രശ്നം ഒഴിവാക്കാൻ)
+            // 2. ഫയൽ സേവ് ചെയ്യാതെ നേരിട്ട് ബഫർ ആയി എടുക്കുന്നു (Single tick പ്രശ്നം മാറാൻ)
             const audioBuffer = await axios.get(audioUrl, { 
                 responseType: 'arraybuffer',
-                headers: { 'User-Agent': 'Mozilla/5.0' }
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+                timeout: 20000
             });
 
-            const tempDir = path.join(__dirname, '../temp');
-            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-            
-            // സുരക്ഷിതമായ ഫയൽ നെയിം ഉണ്ടാക്കുന്നു
-            const safeTitle = title.replace(/[^a-zA-Z0-9]/g, '_');
-            tempFilePath = path.join(tempDir, `ringtone_${Date.now()}_${safeTitle}.mp3`);
-            fs.writeFileSync(tempFilePath, audioBuffer.data);
-
-            // 3. 🎵 ഫയൽ പാത്ത് ഉപയോഗിച്ച് വാട്സ്ആപ്പിലേക്ക് അയക്കുന്നു
+            // 3. 🎵 ബഫർ വെച്ച് നേരിട്ട് വാട്സ്ആപ്പിലേക്ക് അയക്കുന്നു (No Watermark)
             await sock.sendMessage(jid, {
-                audio: { url: tempFilePath }, 
+                audio: audioBuffer.data, 
                 mimetype: 'audio/mpeg',
                 ptt: false, 
                 fileName: `${title}.mp3`,
                 contextInfo: {
                     externalAdReply: {
                         title: `🎵 ${title}`,
-                        body: `${botName} • RINGTONE`,
+                        body: "Ringtone Downloaded",
                         mediaType: 1,
                         thumbnailUrl: "https://i.pinimg.com/736x/8f/3e/eb/8f3eeb0c1097bd5a3a0eec26f1c71285.jpg", // Dark aesthetic image
                         sourceUrl: audioUrl,
@@ -82,15 +68,11 @@ module.exports = {
 
         } catch (err) {
             console.error("Ringtone Error:", err.message);
-            await sock.sendMessage(jid, { text: `❌ *Failed to download!* Try another song.` }, { quoted: msg });
+            
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-        } finally {
-            // ടെമ്പ് ഫയൽ സുരക്ഷിതമായി ഡിലീറ്റ് ചെയ്യുന്നു
-            try {
-                if (tempFilePath && fs.existsSync(tempFilePath)) {
-                    fs.unlinkSync(tempFilePath);
-                }
-            } catch (e) {}
+            
+            // സ്മൂത്ത് എറർ മെസ്സേജ്
+            await sock.sendMessage(jid, { text: `❌ Something went wrong or song not found. Try again later!` }, { quoted: msg });
         }
     }
 };

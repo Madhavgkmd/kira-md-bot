@@ -2,11 +2,11 @@ const axios = require('axios');
 
 module.exports = {
     name: 'fun',
-    // പുതിയതായി 'slot', 'slots', 'spin' എന്നിവ കൂടി ചേർത്തിട്ടുണ്ട് 
+    // ഈ ഒറ്റ ഫയലിലേക്ക് തന്നെ എല്ലാ കമാൻഡുകളും വരാൻ വേണ്ടി അപരനാമങ്ങൾ സെറ്റ് ചെയ്തു 
     alias: ['meme', 'memes', 'fact', 'facts', 'question', 'questions', 'slot', 'slots', 'spin'],
     category: 'fun',
     description: 'KIRA Fun Hub (Memes, Facts, Questions, Slots)',
-    usage: `${process.env.PREFIX || '.'}meme / .fact / .question / .slot`,
+    usage: '.meme / .fact / .question / .slot',
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
@@ -16,9 +16,6 @@ module.exports = {
         
         const cmdName = text.trim().split(/ +/).shift().toLowerCase();
         const action = cmdName.startsWith(prefix) ? cmdName.slice(prefix.length) : cmdName;
-
-        // 🔥 Dynamic Bot Name
-        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
 
         // ⏳ ലോഡിങ് റിയാക്ഷൻ
         await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
@@ -30,7 +27,7 @@ module.exports = {
                 const contentType = res.headers['content-type'] || '';
                 
                 let imageBuffer;
-                let captionText = `😂 *Here is your Meme!*\n\n> *${botName}*`;
+                let captionText = `😂 *Here is your Meme!*`; // വാട്ടർമാർക്ക് ഒഴിവാക്കി
 
                 if (contentType.includes('application/json')) {
                     const json = JSON.parse(res.data.toString('utf-8'));
@@ -38,7 +35,7 @@ module.exports = {
                     let mediaUrl = resultObj.meme_url || json.url || json.image;
                     const title = resultObj.title || json.title;
                     
-                    if (title) captionText = `😂 *${title}*\n\n> *${botName}*`;
+                    if (title) captionText = `😂 *${title}*`;
                     if (!mediaUrl) throw new Error("Could not extract meme URL.");
 
                     const mediaRes = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 20000 });
@@ -57,8 +54,7 @@ module.exports = {
                 const resultObj = data.result || {};
                 const factText = resultObj.fact || data.fact || data.text || (typeof data === 'string' ? data : "Could not fetch a fact.");
 
-                const formatMsg = `🧠 *Did you know?*\n\n${factText}\n\n> *${botName}*`;
-                await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
+                await sock.sendMessage(jid, { text: `🧠 *Did you know?*\n\n${factText}` }, { quoted: msg });
             }
 
             // ─── 3. QUESTION ───
@@ -68,8 +64,7 @@ module.exports = {
                 const resultObj = data.result || {};
                 const questionText = resultObj.question || data.question || data.text || (typeof data === 'string' ? data : "Could not fetch a question.");
 
-                const formatMsg = `🤔 *Question for you!*\n\n${questionText}\n\n> *${botName}*`;
-                await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
+                await sock.sendMessage(jid, { text: `🤔 *Question for you!*\n\n${questionText}` }, { quoted: msg });
             }
 
             // ─── 4. SLOTS GAME ───
@@ -82,9 +77,9 @@ module.exports = {
                 const slotDisplay = resultObj.slotDisplay || "🎰 Error loading slots";
                 const resultMessage = resultObj.resultMessage || "";
 
-                // സ്പേസുകൾ കളഞ്ഞ് നല്ല ഭംഗിയായി മെസ്സേജ് ഒരുക്കുന്നു
-                const formatMsg = `${slotDisplay.trim()}\n\n${resultMessage}\n\n> *${botName}*`;
-                await sock.sendMessage(jid, { text: formatMsg }, { quoted: msg });
+                // സ്പേസുകൾ കളഞ്ഞ് ക്ലീൻ ആയി മെസ്സേജ് ഒരുക്കുന്നു
+                const formatMsg = `${slotDisplay.trim()}\n\n${resultMessage}`;
+                await sock.sendMessage(jid, { text: formatMsg.trim() }, { quoted: msg });
             }
 
             // ✅ സക്സസ് റിയാക്ഷൻ
@@ -92,8 +87,10 @@ module.exports = {
 
         } catch (err) {
             console.error("Fun Plugin Error:", err.message);
-            // ❌ ഫെയിൽ ആയാൽ എറർ റിയാക്ഷൻ
+            
+            // ❌ ഫെയിൽ ആയാൽ എറർ റിയാക്ഷനും ക്ലീൻ മെസ്സേജും
             await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
+            await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
         }
     }
 };

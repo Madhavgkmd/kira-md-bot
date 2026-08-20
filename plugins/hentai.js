@@ -74,7 +74,7 @@ const listCache = {};
 
 module.exports = {
     name: 'hentai',
-    alias: ['nsfw', 'sfm'],
+    alias: ['sfm'],
     category: 'nsfw',
     description: 'Get NSFW videos from SFM Compile',
     usage: `${process.env.PREFIX || '.'}hentai\n${process.env.PREFIX || '.'}hentai <number>`,

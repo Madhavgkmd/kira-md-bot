@@ -1,3 +1,5 @@
+const { getSettings } = require("../lib/database");
+
 module.exports = {
     name: "menu",
     alias: ["help", "commands"],
@@ -8,11 +10,18 @@ module.exports = {
         const pushname = msg.pushName || "User";
         const prefix = process.env.PREFIX || ".";
         
-        // 🔥 Dynamic Bot & Owner Name
-        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || "KIRA X MD";
-        const ownerName = global.config?.OWNER_NAME || process.env.OWNER_NAME || "Madhav";
+        // 🔥 ബോട്ടിന്റെ നമ്പർ കണ്ടുപിടിക്കുന്നു (എറർ മാറ്റാൻ ഇത് നിർബന്ധമാണ്)
+        const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
         
-        const mode = global.botMode || "public"; 
+        // ഡാറ്റാബേസിൽ നിന്ന് ആ ബോട്ടിന്റെ കറക്റ്റ് സെറ്റിങ്സ് എടുക്കുന്നു
+        const config = getSettings(botNumber) || {};
+        
+        // 🔥 Dynamic Bot, Owner & Image (Independent for Main & Pair Bots)
+        const botName = config.botName || process.env.BOT_NAME || "KIRA X MD";
+        const ownerName = config.ownerName || process.env.OWNER_NAME || "Madhav";
+        const menuImage = config.menuImage || process.env.MENU_IMAGE || "https://files.catbox.moe/22x0j5.jpeg";
+        
+        const mode = global.botMode || config.botMode || "public"; 
         
         // Uptime Calculation
         const uptime = process.uptime();
@@ -30,15 +39,15 @@ module.exports = {
             categories[cat].push(`${prefix}${cmd.name}`);
         }
 
-        // 🔥 Horror Glitch Menu Design with Owner Added
+        // 🔥 Horror Glitch Menu Design
         let menu = `🩸 ${botName.split('').join(' ')} 🩸\n\n`;
         menu += `╔══════════════ ♱\n`;
-        menu += `╠ ♱ 𝔘𝔰𝔢𝔯 : ${pushname}\n`;
-        menu += `╠ ♱ 𝔒𝔴𝔫𝔢𝔯 : ${ownerName}\n`;
-        menu += `╠ ♱ 𝔓𝔯𝔢𝔣𝔦𝔵 : ${prefix}\n`;
-        menu += `╠ ♱ 𝔐𝔬𝔡𝔢 : ${mode.toUpperCase()}\n`;
-        menu += `╠ ♱ 𝔘𝔭𝔱𝔦𝔪𝔢 : ${uptimeText}\n`;
-        menu += `╠ ♱ 𝔓𝔩𝔲𝔤𝔦𝔫𝔰 : ${commands.length}\n`;
+        menu += `╠ ♱ ᴜsᴇʀ : ${pushname}\n`;
+        menu += `╠ ♱ ᴏᴡɴᴇʀ : ${ownerName}\n`;
+        menu += `╠ ♱ ᴘʀᴇғɪx : ${prefix}\n`;
+        menu += `╠ ♱ ᴍᴏᴅᴇ : ${mode.toUpperCase()}\n`;
+        menu += `╠ ♱ ᴜᴘᴛɪᴍᴇ : ${uptimeText}\n`;
+        menu += `╠ ♱ ᴘʟᴜɢɪɴs : ${commands.length}\n`;
         menu += `╚══════════════ ♱\n\n`;
 
         for (const category of Object.keys(categories)) {
@@ -50,9 +59,6 @@ module.exports = {
         }
 
         menu += `> *${botName}*`;
-
-       // 🔥 Dynamic Menu Image from .env / global config
-        const menuImage = global.config?.MENU_IMAGE || process.env.MENU_IMAGE || "https://files.catbox.moe/22x0j5.jpeg";
 
         // Send Message with Image
         await sock.sendMessage(jid, {

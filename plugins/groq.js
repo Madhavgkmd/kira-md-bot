@@ -1,24 +1,12 @@
-// plugins/groq.js - KIRA X MD 
+// plugins/groq.js - KIRA X MD (No API Key Required, Fast & Clean)
 const axios = require('axios');
-
-// 🔥 GitHub Block ചെയ്യാതിരിക്കാൻ കീകൾ നേരിട്ട് കൊടുക്കുന്നില്ല! 
-// പകരം നിന്റെ .env ഫയലിൽ നിന്ന് എടുക്കുന്നു.
-const envKeys = process.env.GROQ_API_KEYS || "";
-const GROQ_API_KEYS = envKeys ? envKeys.split(',') : [
-    "PUT_YOUR_KEY_1_HERE",
-    "PUT_YOUR_KEY_2_HERE",
-    "PUT_YOUR_KEY_3_HERE",
-    "PUT_YOUR_KEY_4_HERE",
-    "PUT_YOUR_KEY_5_HERE"
-];
-
-const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
+const { getSettings } = require('../lib/database'); // 🔥 എറർ ഇല്ലാതെ പേരെടുക്കാൻ
 
 module.exports = {
     name: 'groq',
     alias: ['groqai', 'chat'],
     category: 'ai',
-    description: 'Ask anything to Groq AI',
+    description: 'Ask anything to AI',
     usage: '.groq <question>',
 
     async execute(sock, msg, args) {
@@ -26,55 +14,71 @@ module.exports = {
         const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         const quotedText = quotedMsg?.conversation || quotedMsg?.extendedTextMessage?.text || '';
         
-        let prompt = (args && Array.isArray(args)) ? args.join(' ') : '';
-        if (!prompt && quotedText) prompt = quotedText;
+        let query = (args && Array.isArray(args)) ? args.join(' ') : '';
+        if (!query && quotedText) query = quotedText;
 
-        if (!prompt) return await sock.sendMessage(jid, { text: "⚠️ *Type a question!*\n_Example: .groq Who is Goku?_" }, { quoted: msg });
-
-        await sock.sendMessage(jid, { react: { text: "⚡", key: msg.key } });
-
-        // 🛑 LANGUAGE RULE FOR GROQ (English or Manglish)
-        const systemPrompt = `You are ${global.config?.BOT_NAME || 'KIRA AI'}, a smart WhatsApp assistant created by Madhav. You love anime. STRICT LANGUAGE RULE: You must reply in the EXACT SAME LANGUAGE the user uses. If the user types in English, reply ONLY in English. If the user types in Malayalam, reply in Manglish (Malayalam written in English letters) because your Malayalam script is bad. Do not use weird Malayalam script. Be friendly and casual.`;
-        let aiReply = null;
-
-        for (const apiKey of GROQ_API_KEYS) {
-            if (aiReply) break;
-            
-            // കീ സെറ്റ് ആക്കിയിട്ടില്ലെങ്കിൽ എറർ കാണിക്കാൻ
-            if (apiKey.startsWith("PUT_YOUR_KEY")) {
-                console.log("[Groq AI] Missing API Key! Please add it in .env file.");
-                continue;
-            }
-
-            for (const model of GROQ_MODELS) {
-                try {
-                    const response = await axios.post(
-                        'https://api.groq.com/openai/v1/chat/completions',
-                        {
-                            model: model, 
-                            messages: [
-                                { role: 'system', content: systemPrompt },
-                                { role: 'user', content: prompt }
-                            ]
-                        },
-                        { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } }
-                    );
-                    if (response.data && response.data.choices) {
-                        aiReply = response.data.choices[0].message.content;
-                        break; 
-                    }
-                } catch (err) {
-                    console.log(`[Groq AI] Model ${model} failed. Trying next...`);
-                }
-            }
+        if (!query) {
+            return await sock.sendMessage(jid, { text: "⚠️ *Type a question!*\n_Example: .groq Who is Goku?_" }, { quoted: msg });
         }
 
-        if (aiReply) {
-            await sock.sendMessage(jid, { text: aiReply }, { quoted: msg });
-            await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
-        } else {
-            await sock.sendMessage(jid, { text: "❌ *Brain timeout! All Groq keys and models failed or missing keys.*" }, { quoted: msg });
+        try {
+            await sock.sendMessage(jid, { react: { text: "⚡", key: msg.key } });
+            
+            const thinking = await sock.sendMessage(jid, { text: `🤖 _Thinking..._` }, { quoted: msg });
+
+            // 🔥 ഓരോ ബോട്ടിന്റെയും പേര് കറക്റ്റ് ആയി എടുക്കുന്നു (Pair bot support)
+            const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, "");
+            const config = getSettings(botNumber);
+            const botName = config?.botName || process.env.BOT_NAME || 'KIRA X MD';
+            const ownerName = config?.ownerName || process.env.OWNER_NAME || 'the owner';
+
+            // 🛑 LANGUAGE RULE FOR GROQ (English or Manglish) - നീ കൊടുത്ത അതേ റൂൾ!
+            const promptText = `You are ${botName}, a smart WhatsApp assistant created by ${ownerName}. You love anime. STRICT LANGUAGE RULE: You must reply in the EXACT SAME LANGUAGE the user uses. If the user types in English, reply ONLY in English. If the user types in Malayalam, reply in Manglish (Malayalam written in English letters) because your Malayalam script is bad. Do not use weird Malayalam script. Be friendly and casual.\n\nUser: ${query}`;
+
+            // 🔥 നീ തന്ന രണ്ട് പബ്ലിക് API-കളും ഇവിടെ കൊടുത്തിട്ടുണ്ട്
+            const apis = [
+                `https://jerrycoder.oggyapi.workers.dev/ai/gemini?prompt=${encodeURIComponent(promptText)}`,
+                `https://eliteprotech-apis.zone.id/chatgpt?prompt=${encodeURIComponent(promptText)}`
+            ];
+
+            let aiReply = null;
+
+            for (const apiUrl of apis) {
+                try {
+                    const res = await axios.get(apiUrl, { timeout: 15000 });
+                    const data = res.data;
+
+                    if (typeof data === "string") {
+                        aiReply = data;
+                    } else {
+                        aiReply = data?.reply || data?.response || data?.result || data?.text || data?.message || "";
+                    }
+
+                    if (aiReply) break; 
+                } catch (e) {
+                    console.log("Groq fallback API failed, trying next...");
+                }
+            }
+
+            if (!aiReply) {
+                throw new Error("All AI APIs failed.");
+            }
+
+            aiReply = String(aiReply).replace(/ChatGPT|Gemini|Google AI|OpenAI/gi, "AI assistant").trim();
+
+            // പഴയ Thinking മെസ്സേജ് മാറ്റി ഒറിജിനൽ മറുപടി വെക്കുന്നു (No Watermark)
+            try {
+                await sock.sendMessage(jid, { text: aiReply }, { edit: thinking.key });
+            } catch {
+                await sock.sendMessage(jid, { text: aiReply }, { quoted: msg });
+            }
+
+            await sock.sendMessage(jid, { react: { text: "✨", key: msg.key } });
+
+        } catch (err) {
+            console.error("GROQ ERROR:", err.message);
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+            await sock.sendMessage(jid, { text: "❌ Something went wrong, please try again later." }, { quoted: msg });
         }
     }
 };

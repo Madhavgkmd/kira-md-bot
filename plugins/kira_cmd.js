@@ -3,7 +3,7 @@ const axios = require('axios');
 module.exports = [
     // ─── 1. NARUTO VIDEO ───
     {
-        name: 'naruto',
+        name: 'narutovid',
         category: 'anime',
         description: 'Random Naruto video',
         usage: '.naruto',
@@ -14,11 +14,11 @@ module.exports = [
                 const { data } = await axios.get('https://jerrycoder.oggyapi.workers.dev/anime/naruto?json=true', { timeout: 15000 });
                 if (!data?.url) throw new Error("Video URL not found");
                 
-                await sock.sendMessage(jid, { video: { url: data.url }, caption: `🎬 *Naruto Uzumaki*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
+                await sock.sendMessage(jid, { video: { url: data.url }, caption: `🎬 *Naruto Uzumaki*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
-                console.error("NARUTO ERROR:", e.message);
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
@@ -36,11 +36,11 @@ module.exports = [
                 const { data } = await axios.get('https://jerrycoder.oggyapi.workers.dev/anime/onepiece?json=true', { timeout: 15000 });
                 if (!data?.url) throw new Error("Video URL not found");
                 
-                await sock.sendMessage(jid, { video: { url: data.url }, caption: `🎬 *One Piece*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
+                await sock.sendMessage(jid, { video: { url: data.url }, caption: `🎬 *One Piece*` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
-                console.error("ONEPIECE ERROR:", e.message);
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
@@ -54,13 +54,13 @@ module.exports = [
         usage: '.tiktok <username>',
         async execute(sock, msg, args) {
             const jid = msg.key.remoteJid;
-            const input = args.join(" ");
-            if (!input) return sock.sendMessage(jid, { text: '❌ *Provide a username!*\n_Example: .tiktok khaby.lame_' }, { quoted: msg });
+            const input = args.join(" ").trim();
+            if (!input) return await sock.sendMessage(jid, { text: '❌ *Provide a username!*\n_Example: .tiktok khaby.lame_' }, { quoted: msg });
             
             try {
                 await sock.sendMessage(jid, { react: { text: '🔍', key: msg.key } });
                 const { data } = await axios.get(`https://jerrycoder.oggyapi.workers.dev/stalk/tiktok?user=${encodeURIComponent(input)}`, { timeout: 15000 });
-                if (data.status !== "success") return sock.sendMessage(jid, { text: '❌ *User not found!*' }, { quoted: msg });
+                if (data.status !== "success") return await sock.sendMessage(jid, { text: '❌ *User not found!*' }, { quoted: msg });
                 
                 const res = data.result;
                 const caption = `👤 *TIKTOK STALKER*\n\n📛 *Name:* ${res.nickname}\n🔹 *Username:* @${res.username}\n👥 *Followers:* ${res.followers}\n👤 *Following:* ${res.following}\n❤️ *Likes:* ${res.likes}\n🎬 *Videos:* ${res.videos}\n📝 *Bio:* ${res.bio || 'N/A'}`;
@@ -68,8 +68,8 @@ module.exports = [
                 await sock.sendMessage(jid, { image: { url: res.avatar }, caption: caption }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
-                console.error("TIKTOK ERROR:", e.message);
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
@@ -82,13 +82,13 @@ module.exports = [
         usage: '.pin <username>',
         async execute(sock, msg, args) {
             const jid = msg.key.remoteJid;
-            const input = args.join(" ");
-            if (!input) return sock.sendMessage(jid, { text: '❌ *Provide a username!*\n_Example: .pin Jerry_' }, { quoted: msg });
+            const input = args.join(" ").trim();
+            if (!input) return await sock.sendMessage(jid, { text: '❌ *Provide a username!*\n_Example: .pin Jerry_' }, { quoted: msg });
             
             try {
                 await sock.sendMessage(jid, { react: { text: '🔍', key: msg.key } });
                 const { data } = await axios.get(`https://jerrycoder.oggyapi.workers.dev/stalk/pin?user=${encodeURIComponent(input)}`, { timeout: 15000 });
-                if (data.status !== "success") return sock.sendMessage(jid, { text: '❌ *User not found!*' }, { quoted: msg });
+                if (data.status !== "success") return await sock.sendMessage(jid, { text: '❌ *User not found!*' }, { quoted: msg });
                 
                 const res = data.result;
                 const imageUrl = res.image || "https://i.pinimg.com/736x/82/38/c7/8238c715971a80d4bd71e72fcda7f2a1.jpg"; 
@@ -97,8 +97,8 @@ module.exports = [
                 await sock.sendMessage(jid, { image: { url: imageUrl }, caption: caption }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
-                console.error("PIN ERROR:", e.message);
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
@@ -112,13 +112,13 @@ module.exports = [
         usage: '.insta <username>',
         async execute(sock, msg, args) {
             const jid = msg.key.remoteJid;
-            const input = args.join(" ");
-            if (!input) return sock.sendMessage(jid, { text: '❌ *Provide a username!*\n_Example: .insta ohh.itsjerry_' }, { quoted: msg });
+            const input = args.join(" ").trim();
+            if (!input) return await sock.sendMessage(jid, { text: '❌ *Provide a username!*\n_Example: .insta ohh.itsjerry_' }, { quoted: msg });
             
             try {
                 await sock.sendMessage(jid, { react: { text: '🔍', key: msg.key } });
                 const { data } = await axios.get(`https://jerrycoder.oggyapi.workers.dev/stalk/insta?user=${encodeURIComponent(input)}`, { timeout: 15000 });
-                if (data.status !== "success") return sock.sendMessage(jid, { text: '❌ *User not found!*' }, { quoted: msg });
+                if (data.status !== "success") return await sock.sendMessage(jid, { text: '❌ *User not found!*' }, { quoted: msg });
                 
                 const res = data.result;
                 const caption = `📸 *INSTAGRAM STALKER*\n\n📛 *Name:* ${res.name || 'N/A'}\n🔹 *Username:* @${res.username}\n👥 *Followers:* ${res.follower}\n👤 *Following:* ${res.following}\n🖼️ *Posts:* ${res.post}\n🔒 *Private:* ${res.private ? 'Yes' : 'No'}\n📝 *Bio:* ${res.about || 'N/A'}\n🔗 *Link:* ${res.profile}`;
@@ -126,8 +126,8 @@ module.exports = [
                 await sock.sendMessage(jid, { image: { url: res.photo }, caption: caption }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
-                console.error("INSTA ERROR:", e.message);
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
@@ -141,13 +141,13 @@ module.exports = [
         usage: '.github <username>',
         async execute(sock, msg, args) {
             const jid = msg.key.remoteJid;
-            const input = args.join(" ");
-            if (!input) return sock.sendMessage(jid, { text: '❌ *Provide a username!*\n_Example: .github torvalds_' }, { quoted: msg });
+            const input = args.join(" ").trim();
+            if (!input) return await sock.sendMessage(jid, { text: '❌ *Provide a username!*\n_Example: .github torvalds_' }, { quoted: msg });
             
             try {
                 await sock.sendMessage(jid, { react: { text: '🔍', key: msg.key } });
                 const { data } = await axios.get(`https://jerrycoder.oggyapi.workers.dev/stalk/github?user=${encodeURIComponent(input)}`, { timeout: 15000 });
-                if (data.status !== "success") return sock.sendMessage(jid, { text: '❌ *User not found!*' }, { quoted: msg });
+                if (data.status !== "success") return await sock.sendMessage(jid, { text: '❌ *User not found!*' }, { quoted: msg });
                 
                 const res = data.result;
                 const caption = `🐙 *GITHUB STALKER*\n\n📛 *Name:* ${res.name}\n🔹 *Username:* @${res.username}\n👥 *Followers:* ${res.followers}\n👤 *Following:* ${res.following}\n📁 *Repos:* ${res.public_repo}\n📍 *Location:* ${res.location || 'N/A'}\n📝 *Bio:* ${res.bio || 'N/A'}\n🔗 *Link:* ${res.profile_url}`;
@@ -155,8 +155,8 @@ module.exports = [
                 await sock.sendMessage(jid, { image: { url: res.profile }, caption: caption }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
-                console.error("GITHUB ERROR:", e.message);
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
@@ -169,13 +169,13 @@ module.exports = [
         usage: '.applem <url>',
         async execute(sock, msg, args) {
             const jid = msg.key.remoteJid;
-            const input = args.join(" ");
-            if (!input) return sock.sendMessage(jid, { text: '❌ *Provide an Apple Music URL!*' }, { quoted: msg });
+            const input = args.join(" ").trim();
+            if (!input) return await sock.sendMessage(jid, { text: '❌ *Provide an Apple Music URL!*' }, { quoted: msg });
             
             try {
                 await sock.sendMessage(jid, { react: { text: '⬇️', key: msg.key } });
                 const { data } = await axios.get(`https://jerrycoder.oggyapi.workers.dev/down/applem?url=${encodeURIComponent(input)}`, { timeout: 20000 });
-                if (data.status !== "success") return sock.sendMessage(jid, { text: '❌ *Failed to fetch track!*' }, { quoted: msg });
+                if (data.status !== "success") return await sock.sendMessage(jid, { text: '❌ *Failed to fetch track!*' }, { quoted: msg });
                 
                 const res = data.result;
                 await sock.sendMessage(jid, { 
@@ -185,7 +185,7 @@ module.exports = [
                     contextInfo: {
                         externalAdReply: {
                             title: res.title || "Apple Music",
-                            body: res.artist || `Downloaded via ${global.config?.BOT_NAME || 'KIRA'}`,
+                            body: res.artist || "Audio Downloader",
                             mediaType: 1,
                             thumbnailUrl: res.thumbnail || ""
                         }
@@ -193,8 +193,8 @@ module.exports = [
                 }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
-                console.error("APPLE MUSIC ERROR:", e.message);
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
@@ -220,8 +220,8 @@ module.exports = [
                 await sock.sendMessage(jid, { text: caption }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
             } catch (err) {
-                console.error("QUOTE ERROR:", err.message);
                 await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
@@ -246,123 +246,9 @@ module.exports = [
                 await sock.sendMessage(jid, { text: caption }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
             } catch (err) {
-                console.error("JOKE ERROR:", err.message);
                 await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+                await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
     },
-
-    // ─── 10. AWOO IMAGE ───
-    {
-        name: 'awoo',
-        category: 'anime',
-        description: 'Random awoo anime image',
-        usage: '.awoo',
-        async execute(sock, msg) {
-            const jid = msg.key.remoteJid;
-            try {
-                await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
-                const { data } = await axios.get('https://api.giftedtech.co.ke/api/anime/awoo?apikey=gifted', { timeout: 15000 });
-                
-                const imgUrl = data?.result?.url || data?.url || data?.result || data?.data;
-                if (!imgUrl) throw new Error("Image URL not found in API response");
-                
-                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: `🐺 *Awoo!*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
-                await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
-            } catch (e) {
-                console.error("AWOO ERROR:", e.message);
-                await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
-            }
-        }
-    },
-
-    // ─── 11. NEKO IMAGE ───
-    {
-        name: 'neko',
-        category: 'anime',
-        description: 'Random neko image',
-        usage: '.neko',
-        async execute(sock, msg) {
-            const jid = msg.key.remoteJid;
-            try {
-                await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
-                const { data } = await axios.get('https://api.giftedtech.co.ke/api/anime/neko?apikey=gifted', { timeout: 15000 });
-                
-                const imgUrl = data?.result?.url || data?.url || data?.result || data?.data;
-                if (!imgUrl) throw new Error("Image URL not found in API response");
-                
-                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: `🐾 *Neko Kawaii!*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
-                await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
-            } catch (e) {
-                console.error("NEKO ERROR:", e.message);
-                await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
-            }
-        }
-    },
-
-    // ─── 12. KONACHAN IMAGE ───
-    {
-        name: 'konachan',
-        category: 'anime',
-        description: 'Random konachan image',
-        usage: '.konachan',
-        async execute(sock, msg) {
-            const jid = msg.key.remoteJid;
-            try {
-                await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
-                const { data } = await axios.get('https://api.giftedtech.co.ke/api/anime/konachan?apikey=gifted', { timeout: 15000 });
-                
-                const imgUrl = data?.result?.url || data?.url || data?.result || data?.data;
-                if (!imgUrl) throw new Error("Image URL not found in API response");
-                
-                await sock.sendMessage(jid, { image: { url: imgUrl }, caption: `⛩️ *Konachan Image*\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*` }, { quoted: msg });
-                await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
-            } catch (e) {
-                console.error("KONACHAN ERROR:", e.message);
-                await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
-            }
-        }
-    },
-
-    // ─── 13. KUSONIME SEARCH ───
-    {
-        name: 'kusonime',
-        category: 'anime',
-        description: 'Search anime on Kusonime',
-        usage: '.kusonime <anime name>',
-        async execute(sock, msg, args) {
-            const jid = msg.key.remoteJid;
-            const input = args.join(" ");
-            
-            if (!input) return sock.sendMessage(jid, { text: '❌ *Provide an anime name!*\n_Example: .kusonime naruto_' }, { quoted: msg });
-            
-            try {
-                await sock.sendMessage(jid, { react: { text: '🔍', key: msg.key } });
-                const { data } = await axios.get(`https://api.giftedtech.co.ke/api/anime/kusonime-search?apikey=gifted&query=${encodeURIComponent(input)}`, { timeout: 15000 });
-                
-                const resultData = data?.result || data?.data;
-                if (!resultData || resultData.length === 0) return sock.sendMessage(jid, { text: '❌ *Anime not found!*' }, { quoted: msg });
-                
-                const anime = Array.isArray(resultData) ? resultData[0] : resultData;
-                
-                const title = anime.title || anime.name || 'Unknown';
-                const thumb = anime.thumb || anime.thumbnail || anime.image || '';
-                const link = anime.url || anime.link || '';
-                const genre = anime.genre || anime.genres || 'N/A';
-                
-                const caption = `⛩️ *KUSONIME SEARCH*\n\n🎬 *Title:* ${title}\n🎭 *Genre:* ${genre}\n🔗 *Link:* ${link}\n\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
-                
-                if (thumb) {
-                    await sock.sendMessage(jid, { image: { url: thumb }, caption: caption }, { quoted: msg });
-                } else {
-                    await sock.sendMessage(jid, { text: caption }, { quoted: msg });
-                }
-                
-                await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
-            } catch (e) {
-                console.error("KUSONIME ERROR:", e.message);
-                await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
-            }
-        }
-    }
 ];

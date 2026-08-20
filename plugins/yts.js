@@ -20,7 +20,7 @@ module.exports = {
 `🔎 *YouTube Search*
 
 Example:
-.yts Naruto Opening`
+.yts Death Note`
                 },
                 { quoted: msg }
             );

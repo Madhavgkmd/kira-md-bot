@@ -1,10 +1,13 @@
-// plugins/uptime.js
 module.exports = {
     name: "uptime",
     alias: ["runtime", "status"],
     category: "info",
     description: "Check bot running time",
+    usage: ".uptime",
+    
     async execute(sock, msg) {
+        const jid = msg.key.remoteJid;
+
         const getUptime = (ms) => {
             const days = Math.floor(ms / (24 * 60 * 60 * 1000));
             const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
@@ -13,17 +16,21 @@ module.exports = {
             
             let str = "";
             if (days > 0) str += `${days}d `;
-            if (hours > 0) str += `${hours}h `;
-            if (minutes > 0) str += `${minutes}m `;
-            str += `${seconds}s`;
-            return str;
+            if (hours > 0 || days > 0) str += `${hours}hr `;
+            if (minutes > 0 || hours > 0 || days > 0) str += `${minutes}min `;
+            str += `${seconds}sec`;
+            
+            return str.trim();
         };
 
-        const ms = Date.now() - global.startTime;
+        // ബോട്ട് സ്റ്റാർട്ട് ആയ സമയം ഗ്ലോബൽ വേരിയബിളിൽ ഉണ്ടെന്ന് ഉറപ്പുവരുത്തുന്നു
+        const startTime = global.startTime || Date.now();
+        const ms = Date.now() - startTime;
         const uptime = getUptime(ms);
 
-        await sock.sendMessage(msg.key.remoteJid, { 
-            text: `╭──『 ⏱️ *UPTIME* 』──⊷\n│\n│ ➢ *${uptime}*\n│\n╰──────────────⊷` 
+        // വളരെ സിമ്പിൾ ആയ ക്ലീൻ മെസ്സേജ്
+        await sock.sendMessage(jid, { 
+            text: `🤖 *Bot Uptime :* ${uptime}` 
         }, { quoted: msg });
     }
 };

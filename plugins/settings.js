@@ -96,7 +96,6 @@ module.exports = [
                 return await sock.sendMessage(jid, { text: "⚠️ Use 'public' or 'private'" }, { quoted: msg });
             }
             
-            // 🔥 കൃത്യമായി ബോട്ടിന്റെ നമ്പർ എടുക്കുന്നു
             let botNumber = sock.user?.id?.split(':')[0].replace(/[^0-9]/g, '');
             if (!botNumber && process.env.BOT_NUMBER) {
                 botNumber = process.env.BOT_NUMBER.replace(/[^0-9]/g, '');
@@ -181,13 +180,24 @@ module.exports = [
         }
     },
 
-    // 10. BOT ONLINE
+    // 10. BOT ONLINE (🔥 LIVE STATUS UPDATE ADDED 🔥)
     {
         name: "botonline",
         category: "owner",
         async execute(sock, msg, args, isOwner) {
             if (!isOwner) return;
-            await toggleSetting(sock, msg, "botOnline", args[0]?.toLowerCase());
+            
+            const state = args[0]?.toLowerCase();
+            
+            // 1. ഡാറ്റാബേസിൽ അപ്ഡേറ്റ് ചെയ്യുകയും റിപ്ലൈ കൊടുക്കുകയും ചെയ്യുന്നു
+            await toggleSetting(sock, msg, "botOnline", state);
+            
+            // 2. ഒപ്പം വാട്സാപ്പിൽ ലൈവ് ആയി ഓൺലൈൻ/ഓഫ്‌ലൈൻ സ്റ്റാറ്റസ് മാറ്റുന്നു
+            if (state === "on" || state === "true") {
+                await sock.sendPresenceUpdate('available');
+            } else if (state === "off" || state === "false") {
+                await sock.sendPresenceUpdate('unavailable');
+            }
         }
     },
 
