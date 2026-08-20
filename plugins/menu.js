@@ -10,6 +10,9 @@ module.exports = {
         const pushname = msg.pushName || "User";
         const prefix = process.env.PREFIX || ".";
         
+        // 🔥 കമാൻഡ് അടിക്കുമ്പോൾ തന്നെ വരുന്ന റിയാക്ഷൻ
+        await sock.sendMessage(jid, { react: { text: "📜", key: msg.key } });
+        
         // 🔥 ബോട്ടിന്റെ നമ്പർ കണ്ടുപിടിക്കുന്നു (എറർ മാറ്റാൻ ഇത് നിർബന്ധമാണ്)
         const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
         
@@ -60,7 +63,7 @@ module.exports = {
 
         menu += `> *${botName}*`;
 
-        // Send Message with Image
+        // 🔥 കൃത്യമായി യൂസറുടെ മെസ്സേജിന് റിപ്ലൈ ആയി ഇമേജും മെനുവും അയക്കുന്നു
         await sock.sendMessage(jid, {
             image: { url: menuImage },
             caption: menu
