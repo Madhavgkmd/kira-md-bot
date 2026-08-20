@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { updateSettings } = require('../lib/database'); 
+const { updateSetting } = require('../lib/database');
 
 // ─────────────────────────────────────
 // HELPER: UPDATE .ENV FILE PERMANENTLY
