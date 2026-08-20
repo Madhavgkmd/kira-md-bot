@@ -2,7 +2,7 @@
 
 <img src="https://i.ibb.co/FkYcVmw5/temp.jpg" width="100%" alt="KIRA X MD">
 
-# ⚡ 𝐊𝐈Ｒ𝐀 𝐗 𝐌𝐃 ⚡
+# ⚡ 𝐊𝐈𝐑𝐀 𝐗 𝐌𝐃 ⚡
 
 <i>The Ultimate WhatsApp Multi-Device Bot Experience</i>
 
@@ -37,18 +37,6 @@
 
 ---
 
-## ⚡ 𝐒𝐔𝐏𝐑𝐄𝐌𝐄 𝐒𝐄𝐒𝐒𝐈𝐎𝐍 𝐆𝐄𝐍𝐄𝐑𝐀𝐓𝐎𝐑
-
-<p><i>Generate WhatsApp Multi Device Sessions Instantly<br>Fast • Secure • Free • Premium Experience</i></p>
-
-<a href="https://kira-session-generator-api.onrender.com/">
-  <img src="https://img.shields.io/badge/⚡_GENERATE_SESSION_NOW-000000?style=for-the-badge&logo=whatsapp&logoColor=white" width="280">
-</a>
-
-<br><br>
-
----
-
 ## 🚀 𝐎𝐍𝐄 𝐂𝐋𝐈𝐂𝐊 𝐃𝐄𝐏𝐋𝐎𝐘
 
 <table align="center">
@@ -80,10 +68,27 @@
 
 ---
 
-## 💬 𝐎𝐅𝐅𝐈𝐂𝐈𝐀𝐋 𝐒𝐔𝐏𝐏𝐎𝐑𝐓 𝐆𝐑𝐎𝐔𝐏
+## 🔑 𝐇𝐎𝐖 𝐓𝐎 𝐂𝐎𝐍𝐍𝐄𝐂𝐓 (𝐏𝐀𝐈𝐑𝐈𝐍𝐆 𝐂𝐎𝐃𝐄)
 
-<a href="https://chat.whatsapp.com/C3hbXjblNLiF7CoDYJ8lwY">
-  <img src="https://img.shields.io/badge/💬_JOIN_SUPPORT_GROUP-25D366?style=for-the-badge&logo=whatsapp&logoColor=white">
+<i>No Session Generator Needed! KIRA X MD uses a secure & direct Pairing Code system.</i>
+
+<div align="left">
+
+1. **Deploy the Bot:** Deploy the repository to your preferred platform (Panel, Railway, Render, Replit, etc.).
+2. **Set Environment Variable:** In your deployment platform's Environment Variables (or `.env` file), add a new variable named `BOT_NUMBER` and enter your WhatsApp number with the country code (e.g., `919876543210`).
+3. **Start the Bot:** Run or Start your server/panel.
+4. **Get the Code:** Check the console/terminal logs. The bot will automatically generate and display an 8-digit **Pairing Code**.
+5. **Link to WhatsApp:** Open your WhatsApp ➔ Tap the 3 dots (Options) ➔ `Linked Devices` ➔ `Link a Device` ➔ `Link with phone number instead` ➔ Enter the 8-digit code.
+6. **Done!** The bot will sync your chats and you will receive a connection success message.
+
+</div>
+
+---
+
+## 📢 𝐎𝐅𝐅𝐈𝐂𝐈𝐀𝐋 𝐂𝐇𝐀𝐍𝐍𝐄𝐋
+
+<a href="https://whatsapp.com/channel/0029Vb87dNXATRSs169S8c1t">
+  <img src="https://img.shields.io/badge/📢_JOIN_OFFICIAL_CHANNEL-25D366?style=for-the-badge&logo=whatsapp&logoColor=white">
 </a>
 
 ---
