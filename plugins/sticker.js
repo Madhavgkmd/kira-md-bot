@@ -1,4 +1,4 @@
-// plugins/sticker.js - KIRA X MD (Multi-Image & Quoted Sticker Support)
+// plugins/sticker.js - KIRA X MD (Perfect Album & Multi-Image Sticker Support)
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const sharp = require("sharp");
 const ffmpeg = require("fluent-ffmpeg");
@@ -111,7 +111,7 @@ module.exports = {
     name: "sticker",
     alias: ["s", "stik"],
     category: "sticker",
-    description: "Convert single/multiple images or videos to stickers",
+    description: "Convert single/album/multiple images to stickers",
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
@@ -120,36 +120,33 @@ module.exports = {
 
         let mediaList = [];
 
-        // 1. നേരിട്ട് ഫോട്ടോയോടുകൂടി `.s` അടിച്ചാൽ
+        // 1. നേരിട്ട് ഫോട്ടോയോടൊപ്പം `.s` അടിച്ചാൽ
         if (currentMsg?.imageMessage || currentMsg?.videoMessage) {
             mediaList.push(currentMsg);
         }
-        // 2. ഒരൊറ്റ ഫോട്ടോയ്ക്കോ വീഡിയോയ്ക്കോ റിപ്ലൈ അടിച്ചാൽ
+        // 2. സിംഗിൾ ഫോട്ടോയ്ക്കോ വീഡിയോയ്ക്കോ റിപ്ലൈ അടിച്ചാൽ
         else if (quoted) {
             let mediaMsg = quoted;
             if (quoted.viewOnceMessageV2) mediaMsg = quoted.viewOnceMessageV2.message;
             else if (quoted.viewOnceMessage) mediaMsg = quoted.viewOnceMessage.message;
 
-            if (mediaMsg?.imageMessage || mediaMsg?.videoMessage) {
+            // 🔥 ആൽബം മെസ്സേജ് ആണോ എന്ന് പരിശോധിക്കുന്നു (Album Support)
+            if (quoted.albumMessage && quoted.albumMessage.messages) {
+                for (const subMsg of quoted.albumMessage.messages) {
+                    if (subMsg.message?.imageMessage || subMsg.message?.videoMessage) {
+                        mediaList.push(subMsg.message);
+                    }
+                }
+            } 
+            else if (mediaMsg?.imageMessage || mediaMsg?.videoMessage) {
                 mediaList.push(mediaMsg);
             }
         }
 
-        // 3. 🔥 ഒന്നിലധികം ഫോട്ടോകൾ ഒരുമിച്ച് സെലക്ട് ചെയ്ത് റിപ്ലൈ തരുമ്പോൾ (Album / Multiple Messages check)
-        const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
-        if (contextInfo?.quotedMessage) {
-            // Baileys സ്റ്റോറിൽ നിന്ന് അല്ലെങ്കിൽ മെസ്സേജ് ഹിസ്റ്ററിയിൽ നിന്ന് മൾട്ടിപ്പിൾ ഒബ്ജക്റ്റുകൾ എടുക്കുന്നു
-            // (അല്ലെങ്കിൽ ഒപ്പമുള്ള ചിത്രങ്ങൾ ആൽബം ആണെങ്കിൽ)
-            if (contextInfo.quotedMessage.imageMessage || contextInfo.quotedMessage.videoMessage) {
-                // ഇതിനകം mediaList-ൽ ഉണ്ടെങ്കിൽ വീണ്ടും ആഡ് ചെയ്യേണ്ടതില്ല
-                if (mediaList.length === 0) mediaList.push(contextInfo.quotedMessage);
-            }
-        }
-
-        // ഫോട്ടോയോ വീഡിയോയോ ഒന്നും കിട്ടിയില്ലെങ്കിൽ എറർ അടിക്കും
+        // ഫോട്ടോയോ വീഡിയോയോ കിട്ടിയില്ലെങ്കിൽ
         if (mediaList.length === 0) {
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return await sock.sendMessage(jid, { text: "⚠️ *Please reply to an image/video or send an image with caption .s!*" }, { quoted: msg });
+            return await sock.sendMessage(jid, { text: "⚠️ *Please reply to an image/video or album!*" }, { quoted: msg });
         }
 
         // PackName & Author Setup
@@ -173,7 +170,7 @@ module.exports = {
 
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-        // 🔥 ലൂപ്പ് വെച്ച് എല്ലാ മീഡിയയും സ്റ്റിക്കറുകളാക്കി മാറ്റുന്നു
+        // 🔥 ലൂപ്പ് വഴി ആൽബത്തിലെ എല്ലാ ഫോട്ടോകളും സ്റ്റിക്കർ ആക്കി മാറ്റുന്നു
         for (const media of mediaList) {
             let mMsg = media;
             if (mMsg.viewOnceMessageV2) mMsg = mMsg.viewOnceMessageV2.message;
