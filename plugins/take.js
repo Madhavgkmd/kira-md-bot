@@ -1,4 +1,4 @@
-// plugins/take.js - KIRA X MD (Change watermark/Take sticker)
+// plugins/take.js - KIRA X MD (Change watermark/Take sticker - Reaction Only)
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const fs = require("fs");
 const path = require("path");
@@ -37,6 +37,9 @@ module.exports = {
         const jid = msg.key.remoteJid;
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
+        // 🔥 ബോട്ടിന്റെ നമ്പർ കൃത്യമായി കണ്ടുപിടിക്കുന്നു (എറർ ഫിക്സ്)
+        const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
+
         // Verify they are replying to something
         if (!quoted) {
             return await sock.sendMessage(jid, { text: "❌ *Reply to the sticker you want to take!*" }, { quoted: msg });
@@ -51,8 +54,8 @@ module.exports = {
             return await sock.sendMessage(jid, { text: "❌ *That's not a sticker. Reply to a sticker only.*" }, { quoted: msg });
         }
 
-        // 🔥 Dynamic Bot Name Helper
-        const botName = typeof getBotName === 'function' ? getBotName() : (global.config?.BOT_NAME || global.getBotName(botNumber) || "KIRA X MD");
+        // 🔥 Dynamic Bot Name Helper (സുരക്ഷിതമായ കോൾ)
+        const botName = typeof getBotName === 'function' ? getBotName() : (global.config?.BOT_NAME || global.getBotName?.(botNumber) || "KIRA X MD");
 
         let packName = botName;
         let authorName = botName;
@@ -71,8 +74,8 @@ module.exports = {
             }
         }
 
+        // ഇവിടെ റിയാക്ഷൻ മാത്രം കൊടുക്കുന്നു, മെസ്സേജ് അയക്കുന്നില്ല
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
-        const statusMsg = await sock.sendMessage(jid, { text: `⚡ Stealing sticker as "${packName}"...` });
 
         let inputPath;
         try {
@@ -98,8 +101,7 @@ module.exports = {
             const sticker = fs.readFileSync(inputPath);
             await sock.sendMessage(jid, { sticker }, { quoted: msg });
             
-            // Delete the status message and react success
-            await sock.sendMessage(jid, { delete: statusMsg.key });
+            // React success
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
             // Cleanup temp file
@@ -107,9 +109,11 @@ module.exports = {
             
         } catch (err) {
             console.error("Take command error:", err.message);
-            await sock.sendMessage(jid, { text: "❌ *Failed to take sticker. Ensure you are replying to a recently sent sticker!*", edit: statusMsg.key });
+            await sock.sendMessage(jid, { text: "❌ *Failed to take sticker. Ensure you are replying to a recently sent sticker!*" }, { quoted: msg });
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+            
             if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
         }
     }
 };
+
