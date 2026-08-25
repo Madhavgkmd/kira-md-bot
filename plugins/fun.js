@@ -27,7 +27,7 @@ module.exports = {
                 const contentType = res.headers['content-type'] || '';
                 
                 let imageBuffer;
-                let captionText = `😂 *Here is your Meme!*`; // വാട്ടർമാർക്ക് ഒഴിവാക്കി
+                let captionText = `😂 *Here is your Meme!*`;
 
                 if (contentType.includes('application/json')) {
                     const json = JSON.parse(res.data.toString('utf-8'));
@@ -72,14 +72,23 @@ module.exports = {
                 const res = await axios.get('https://abhi-api.vercel.app/api/games/slots', { timeout: 15000 });
                 const data = res.data;
                 
-                // റിസൾട്ടിൽ നിന്നും ഗെയിം ഡാറ്റ എടുക്കുന്നു
                 const resultObj = data.result || {};
                 const slotDisplay = resultObj.slotDisplay || "🎰 Error loading slots";
                 const resultMessage = resultObj.resultMessage || "";
 
-                // സ്പേസുകൾ കളഞ്ഞ് ക്ലീൻ ആയി മെസ്സേജ് ഒരുക്കുന്നു
                 const formatMsg = `${slotDisplay.trim()}\n\n${resultMessage}`;
                 await sock.sendMessage(jid, { text: formatMsg.trim() }, { quoted: msg });
+            }
+
+            // ─── 5. FALLBACK / MENU (ഇതാണ് നമ്മൾ പുതുതായി ചേർത്തത്) ───
+            else {
+                const menuMsg = `🎮 *KIRA FUN HUB* 🎮\n\n` +
+                                `_Try these commands:_\n\n` +
+                                `🔹 *.meme* - Get a random meme\n` +
+                                `🔹 *.fact* - Get a random fact\n` +
+                                `🔹 *.question* - Get a random question\n` +
+                                `🔹 *.slot* - Spin the slot machine`;
+                await sock.sendMessage(jid, { text: menuMsg }, { quoted: msg });
             }
 
             // ✅ സക്സസ് റിയാക്ഷൻ
@@ -90,7 +99,7 @@ module.exports = {
             
             // ❌ ഫെയിൽ ആയാൽ എറർ റിയാക്ഷനും ക്ലീൻ മെസ്സേജും
             await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
-            await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
+            await sock.sendMessage(jid, { text: '❌ API is currently down or not responding. Please try again later.' }, { quoted: msg });
         }
     }
 };
