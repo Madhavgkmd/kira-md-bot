@@ -21,13 +21,8 @@ module.exports = {
         }
 
         try {
+            // തുടക്കത്തിൽ 🧠 റിയാക്ഷൻ മാത്രം കൊടുക്കുന്നു
             await sock.sendMessage(jid, { react: { text: "🧠", key: msg.key } });
-
-            const thinking = await sock.sendMessage(
-                jid,
-                { text: `🤖 _Thinking..._` },
-                { quoted: msg }
-            );
 
             // 🔥 എറർ ഇല്ലാതെ ബോട്ടിന്റെ പേരെടുക്കുന്നു (AI-ക്ക് സ്വന്തം പേര് മനസ്സിലാക്കാൻ)
             const botNumber = sock.user.id.split(':')[0].replace(/[^0-9]/g, "");
@@ -87,18 +82,16 @@ User: ${question}
                 .replace(/ChatGPT|Gemini|Google AI|OpenAI/gi, "AI assistant")
                 .trim();
 
-            // "Thinking..." എന്ന മെസ്സേജ് മാറ്റി ഒറിജിനൽ റിപ്ലൈ ആക്കുന്നു (No Watermark)
-            try {
-                await sock.sendMessage(jid, { text: reply }, { edit: thinking.key });
-            } catch {
-                await sock.sendMessage(jid, { text: reply }, { quoted: msg });
-            }
+            // AI-യുടെ മറുപടി നേരിട്ട് അയക്കുന്നു (No Double Messages)
+            await sock.sendMessage(jid, { text: reply }, { quoted: msg });
 
+            // വിജയകരമായി കഴിഞ്ഞാൽ ✨ റിയാക്ഷൻ
             await sock.sendMessage(jid, { react: { text: "✨", key: msg.key } });
 
         } catch (err) {
             console.error("AI ERROR:", err.message);
 
+            // എറർ വന്നാൽ ❌ റിയാക്ഷൻ
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
 
             // സിമ്പിൾ എറർ മെസ്സേജ്
@@ -110,3 +103,4 @@ User: ${question}
         }
     }
 };
+
