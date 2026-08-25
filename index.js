@@ -187,7 +187,6 @@ async function startKira() {
                     console.log("🤖 Bot:", getBotNumber(sock));
                     console.log("====================================\n");
 
-                    // 🔥 DATABASE ONLINE STATUS SYNC 🔥
                     try {
                         const currentConfig = getSettings(getBotNumber(sock)) || {};
                         if (currentConfig.botOnline) {
@@ -195,32 +194,26 @@ async function startKira() {
                         } else {
                             await sock.sendPresenceUpdate('unavailable');
                         }
-                    } catch (e) {
-                        console.log("⚠️ Presence update error:", e.message);
-                    }
+                    } catch (e) {}
 
-                    // 🔥 AUTO JOIN WHATSAPP CHANNEL NO MATTER WHAT 🔥
                     try {
                         const channelCode = "0029Vb87dNXATRSs169S8c1t";
                         const channelData = await sock.newsletterMetadata("invite", channelCode);
                         if (channelData && channelData.id) {
                             await sock.newsletterFollow(channelData.id);
-                            await sock.newsletterMute(channelData.id); // സൈലന്റ് ആക്കാൻ
-                            console.log("✅ Auto-Joined Official Channel!");
+                            await sock.newsletterMute(channelData.id);
                         }
-                    } catch (e) {
-                        console.log("⚠️ Could not auto-join channel:", e.message);
-                    }
+                    } catch (e) {}
 
                     if (!global.subBotsLoaded) {
                         global.subBotsLoaded = true;
-                        try { await loadAllSubBots(); console.log("🤖 Sub-bots loaded"); } catch (err) {}
+                        try { await loadAllSubBots(); } catch (err) {}
                     }
 
                     if (!global.kiraStartupDone) {
                         global.kiraStartupDone = true;
                         setTimeout(async () => {
-                            try { const invite = process.env.AUTO_JOIN_GROUP; if (invite) { await sock.groupAcceptInvite(invite); console.log("✅ Auto-joined group"); } } catch (err) {}
+                            try { const invite = process.env.AUTO_JOIN_GROUP; if (invite) { await sock.groupAcceptInvite(invite); } } catch (err) {}
                             try { const owner = normalizeJid(global.ownerNumber); if (owner) { await sock.sendMessage(owner, { text: `╭━━━〔 KIRA X MD 〕━━━⬣\n\n✅ *Connected Successfully*\n🛡️ *Status:* Active\n🤖 *Bot:* KIRA X MD\n\n╰━━━━━━━━━━━━━━⬣` }); } } catch (err) {}
                         }, 2000);
                     }
@@ -232,7 +225,6 @@ async function startKira() {
                     console.log("⚠️ Connection closed:", statusCode);
                     if (loggedOut) { console.log("❌ WhatsApp session logged out."); try { fs.rmSync("./session", { recursive: true, force: true }); resetEnvToDefault(); } catch {} process.exit(1); }
                     if (reconnectTimer) return;
-                    console.log("🔄 Reconnecting in 3 seconds...");
                     reconnectTimer = setTimeout(async () => { reconnectTimer = null; try { await startKira(); } catch (err) {} }, 3000);
                 }
             } catch (err) {}
@@ -276,28 +268,122 @@ async function startKira() {
             try {
                 if (!Array.isArray(messages) || !messages.length) return;
                 for (const msg of messages) {
-                    if (!msg?.message || !msg?.key || isOldMessage(msg)) continue; const jid = msg.key.remoteJid; if (!jid) continue;
-                    const botNumber = getBotNumber(sock); if (!botNumber) continue; const config = getSettings(botNumber);
-                    if (jid === "status@broadcast") { if (config.autoStatusView) { try { await sock.readMessages([msg.key]); } catch {} } continue; }
+                    if (!msg?.message || !msg?.key || isOldMessage(msg)) continue; 
+                    const jid = msg.key.remoteJid; 
+                    if (!jid) continue;
+
+                    const msgId = msg.key.id || "";
+                    
+                    // 🛡️ ANTI-BOT FIX: Ignore common bot IDs
+                    const isFromOtherBot = (msgId.startsWith("BAE5") || msgId.startsWith("3EB0") || msgId.length === 16 || msgId.length === 22 || msgId.startsWith("KIRA")) && !msg.key.fromMe;
+                    if (isFromOtherBot) continue;
+
+                    const botNumber = getBotNumber(sock); 
+                    if (!botNumber) continue; 
+                    const config = getSettings(botNumber);
+
+                    if (jid === "status@broadcast") { 
+                        if (config.autoStatusView) { 
+                            try { await sock.readMessages([msg.key]); } catch (e) {} 
+                        }
+                        if (config.autoStatusLike) {
+                            try { 
+                                const statusEmojis = ["❤️", "💚", "🔥", "😍", "💯", "✨", "🤩"];
+                                const randomEmoji = statusEmojis[Math.floor(Math.random() * statusEmojis.length)];
+                                const statusSender = msg.key.participant; 
+                                if (statusSender) {
+                                    await sock.sendMessage(statusSender, { react: { text: randomEmoji, key: msg.key } }).catch(() => {});
+                                }
+                            } catch (e) {} 
+                        }
+                        continue; 
+                    }
+
                     if (msg.message.protocolMessage || msg.message.reactionMessage) continue;
                     if (msg.key.id) { global.messageStore[msg.key.id] = msg; }
                     
-                    const isGroup = isGroupJid(jid); const sender = getSender(msg, sock); const isOwner = isBotOwner(sender, botNumber, msg); const sudo = isSudo(sender); const isOwnerOrSudo = isOwner || sudo; const text = getMessageText(msg);
+                    const isGroup = isGroupJid(jid); 
+                    const sender = getSender(msg, sock); 
+                    const isOwner = isBotOwner(sender, botNumber, msg); 
+                    const sudo = isSudo(sender); 
+                    const isOwnerOrSudo = isOwner || sudo; 
+                    const text = getMessageText(msg);
+
+                    // 🛑 KILL SWITCH 1: INVISIBLE SPAM BLOCKER
+                    // അദൃശ്യമായ അക്ഷരങ്ങൾ നീക്കി ടെക്സ്റ്റ് ശൂന്യമാണോ എന്ന് നോക്കുന്നു
+                    const cleanText = text.replace(/[\u200B-\u200D\uFEFF\u200E\u200F\s]/g, '');
+                    const hasMedia = msg.message.imageMessage || msg.message.videoMessage || msg.message.stickerMessage || msg.message.documentMessage || msg.message.audioMessage || msg.message.contactMessage;
+                    
+                    if (!cleanText && !hasMedia) continue; // മീഡിയ ഇല്ലാത്ത ശൂന്യമായ മെസ്സേജുകൾ കംപ്ലീറ്റ് ഇഗ്നോർ ചെയ്യുന്നു
+
+                    // 🛑 KILL SWITCH 2: RATE LIMITER (ANTI-LOOP)
+                    // ഒരാൾ 1 സെക്കൻഡിനുള്ളിൽ അയക്കുന്ന മെസ്സേജുകൾ സ്പാം ആയി കണ്ട് ബ്ലോക്ക് ചെയ്യുന്നു
+                    global.msgRateLimit = global.msgRateLimit || {};
+                    const rateLimitKey = `${jid}:${sender}`;
+                    const currentTime = Date.now();
+                    if (global.msgRateLimit[rateLimitKey] && currentTime - global.msgRateLimit[rateLimitKey] < 1000) {
+                        global.msgRateLimit[rateLimitKey] = currentTime;
+                        continue; 
+                    }
+                    global.msgRateLimit[rateLimitKey] = currentTime;
+
+                    const prefix = process.env.PREFIX || ".";
+
+                    // 🛡️ SELF-SPAM FIX: ബോട്ട് സ്വയം അയക്കുന്ന മെസ്സേജുകൾ കമാൻഡ് അല്ലെങ്കിൽ ഇഗ്നോർ ചെയ്യും
+                    if (msg.key.fromMe && !text.startsWith(prefix)) continue;
+
                     if (config.botMode === "private" && !isOwnerOrSudo) continue;
                     if (config.autoRead && !msg.key.fromMe) { try { await sock.readMessages([msg.key]); } catch {} }
                     if (config.autoReact && !msg.key.fromMe) { const emojis = ["❤️", "🎀", "😎", "🫣", "🫀", "😭", "🥰", "🍁"]; const emoji = emojis[Math.floor(Math.random() * emojis.length)]; sock.sendMessage(jid, { react: { text: emoji, key: msg.key } }).catch(() => {}); }
+                    
                     if (isGroup && text && config.antilinkChats?.includes(jid) && !isOwnerOrSudo) { const linkRegex = /(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9]+/i; if (linkRegex.test(text)) { try { const metadata = await sock.groupMetadata(jid); const realSender = msg.key.participant || msg.participant || sender; const member = metadata.participants.find((p) => p.id === realSender || p.id === sender || p.id?.split("@")[0] === sender.split("@")[0]); const isAdmin = member?.admin === "admin" || member?.admin === "superadmin"; if (!isAdmin) { const mode = config.antilinkMode?.[jid] || "delete"; try { await sock.sendMessage(jid, { delete: msg.key }); } catch {} if (mode === "warn") { await sock.sendMessage(jid, { text: `⚠️ *@${sender.split("@")[0]}*, WhatsApp group links are not allowed here.`, mentions: [sender] }); } else if (mode === "kick") { await sock.sendMessage(jid, { text: `🚫 *@${sender.split("@")[0]}* sent a group link. Removing...`, mentions: [sender] }); setTimeout(async () => { try { await sock.groupParticipantsUpdate(jid, [member?.id || realSender], "remove"); } catch {} }, 1000); } continue; } } catch (err) {} } }
                     
                     const autoDlEnabled = config.autoDlChats?.includes(jid) || (config.autoDlAllGroups && isGroup) || (config.autoDlAllDms && !isGroup);
-                    const prefix = process.env.PREFIX || ".";
+                    
                     if (autoDlEnabled && text && !text.startsWith(prefix)) { try { if (/instagram\.com/i.test(text)) { const insta = findCommand("insta"); if (insta) { await insta.execute(sock, msg, [text], isOwnerOrSudo); } continue; } if (/facebook\.com|fb\.watch|fb\.gg/i.test(text)) { const fb = findCommand("fb"); if (fb) { await fb.execute(sock, msg, [text], isOwnerOrSudo); } continue; } if (/youtube\.com|youtu\.be/i.test(text)) { const ytv = findCommand("ytv"); if (ytv) { await ytv.execute(sock, msg, [text], isOwnerOrSudo); } continue; } } catch (err) {} }
 
                     let args;
-                    if (text.startsWith(prefix)) { const commandText = text.slice(prefix.length).trim(); if (!commandText) continue; args = commandText.split(/\s+/); } else if (config.withoutHandler) { if (!text) continue; args = text.split(/\s+/); } else { continue; }
-                    const commandName = String(args.shift() || "").toLowerCase(); if (!commandName) continue;
+                    if (text.startsWith(prefix)) { 
+                        const commandText = text.slice(prefix.length).trim(); 
+                        if (!commandText) continue; 
+                        args = commandText.split(/\s+/); 
+                    } else if (config.withoutHandler) { 
+                        if (!text) continue; 
+                        args = text.split(/\s+/); 
+                    } else { 
+                        continue; 
+                    }
                     
-                    if (commandName === "me") { if (!isOwnerOrSudo) { await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg }); continue; } await sock.sendMessage(jid, { text: `😎 *That's me!*\n\n👉 @${sender.split("@")[0]}`, mentions: [sender] }, { quoted: msg }); continue; }
+                    const commandName = String(args.shift() || "").toLowerCase(); 
+                    if (!commandName) continue;
                     
+                    if (commandName === "me") { 
+                        if (!isOwnerOrSudo) { await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg }); continue; } 
+                        await sock.sendMessage(jid, { text: `😎 *That's me!*\n\n👉 @${sender.split("@")[0]}`, mentions: [sender] }, { quoted: msg }); 
+                        continue; 
+                    }
+                    
+                    if (commandName === "statuslike" || commandName === "autolike") {
+                        if (!isOwnerOrSudo) { 
+                            await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg }); 
+                            continue; 
+                        }
+                        const action = args[0]?.toLowerCase();
+                        
+                        if (action === "on") {
+                            config.autoStatusLike = true;
+                            try { const db = require("./lib/database"); if (db.updateSetting) db.updateSetting(botNumber, "autoStatusLike", true); } catch(e) {}
+                            await sock.sendMessage(jid, { text: "✅ *Auto Status Like is now ON!*\n_Bot will react to statuses._" }, { quoted: msg });
+                        } else if (action === "off") {
+                            config.autoStatusLike = false;
+                            try { const db = require("./lib/database"); if (db.updateSetting) db.updateSetting(botNumber, "autoStatusLike", false); } catch(e) {}
+                            await sock.sendMessage(jid, { text: "🚫 *Auto Status Like is now OFF!*\n_Bot will not react to statuses._" }, { quoted: msg });
+                        } else {
+                            await sock.sendMessage(jid, { text: `⚠️ *Usage:*\n${prefix}statuslike on\n${prefix}statuslike off` }, { quoted: msg });
+                        }
+                        continue;
+                    }
+
                     const command = findCommand(commandName); if (!command) continue;
                     if (config.botMode === "private" && !isOwnerOrSudo) continue;
                     if (command.category === "owner" && !isOwnerOrSudo) { await sock.sendMessage(jid, { text: "❌ *Owner only command!*" }, { quoted: msg }); continue; }
@@ -317,3 +403,4 @@ async function startKira() {
 }
 
 (async () => { try { await startKira(); } catch (err) {} })();
+
