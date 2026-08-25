@@ -1,3 +1,4 @@
+// plugins/movie.js - KIRA X MD (TMDB Movie Search without Watermark)
 const axios = require('axios');
 const https = require('https');
 
@@ -8,7 +9,6 @@ const api = axios.create({
     headers: { 'User-Agent': 'Mozilla/5.0' }
 });
 
-const WATERMARK = `\n\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
 const TMDB_API_KEY = '23a935477fba7e0af118d31923dab5d0';
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
@@ -86,8 +86,7 @@ module.exports = {
                 `📝 *Story:*\n${formatted.overview.substring(0, 300)}...\n\n` +
                 `👥 *Cast:* ${formatted.cast}\n\n` +
                 (formatted.trailer ? `🎥 *Trailer:* ${formatted.trailer}\n\n` : '') +
-                `🍿 *Similar:* ${formatted.similarMovies}` +
-                WATERMARK;
+                `🍿 *Similar:* ${formatted.similarMovies}`;
 
             if (formatted.poster) {
                 await sock.sendMessage(jid, { image: { url: formatted.poster }, caption: caption }, { quoted: msg });
@@ -104,3 +103,4 @@ module.exports = {
         }
     }
 };
+
