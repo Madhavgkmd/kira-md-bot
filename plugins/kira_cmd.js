@@ -180,11 +180,11 @@ module.exports = [
                 
                 const res = data.result;
 
-                // ഓഡിയോ നേരിട്ട് ബഫർ ആയി ഡൗൺലോഡ് ചെയ്യുന്നു (ബ്ലാങ്ക് മെസ്സേജ് ഒഴിവാക്കാൻ)
+                // Download audio directly as buffer to prevent blank messages
                 const audioResponse = await axios.get(res.download, { responseType: 'arraybuffer', timeout: 30000 });
                 const audioBuffer = Buffer.from(audioResponse.data);
 
-                // യാതൊരു ഫോട്ടോയും ഇല്ലാതെ സാധാരണ ഓഡിയോ ആയി അയക്കുന്നു
+                // Send as normal audio without thumbnail
                 await sock.sendMessage(jid, { 
                     audio: audioBuffer, 
                     mimetype: 'audio/mpeg', 
@@ -197,8 +197,7 @@ module.exports = [
                 await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
-    }
-
+    },
 
     // ─── 8. ANIME QUOTE ───
     {
@@ -251,5 +250,6 @@ module.exports = [
                 await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
-    },
+    }
 ];
+
