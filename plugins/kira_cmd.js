@@ -174,30 +174,31 @@ module.exports = [
             
             try {
                 await sock.sendMessage(jid, { react: { text: '⬇️', key: msg.key } });
+                
                 const { data } = await axios.get(`https://jerrycoder.oggyapi.workers.dev/down/applem?url=${encodeURIComponent(input)}`, { timeout: 20000 });
                 if (data.status !== "success") return await sock.sendMessage(jid, { text: '❌ *Failed to fetch track!*' }, { quoted: msg });
                 
                 const res = data.result;
+
+                // ഓഡിയോ നേരിട്ട് ബഫർ ആയി ഡൗൺലോഡ് ചെയ്യുന്നു (ബ്ലാങ്ക് മെസ്സേജ് ഒഴിവാക്കാൻ)
+                const audioResponse = await axios.get(res.download, { responseType: 'arraybuffer', timeout: 30000 });
+                const audioBuffer = Buffer.from(audioResponse.data);
+
+                // യാതൊരു ഫോട്ടോയും ഇല്ലാതെ സാധാരണ ഓഡിയോ ആയി അയക്കുന്നു
                 await sock.sendMessage(jid, { 
-                    audio: { url: res.download }, 
+                    audio: audioBuffer, 
                     mimetype: 'audio/mpeg', 
-                    ptt: false,
-                    contextInfo: {
-                        externalAdReply: {
-                            title: res.title || "Apple Music",
-                            body: res.artist || "Audio Downloader",
-                            mediaType: 1,
-                            thumbnailUrl: res.thumbnail || ""
-                        }
-                    }
+                    ptt: false
                 }, { quoted: msg });
+
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
             } catch (e) {
                 await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
                 await sock.sendMessage(jid, { text: '❌ Something went wrong, please try again later.' }, { quoted: msg });
             }
         }
-    },
+    }
+
 
     // ─── 8. ANIME QUOTE ───
     {
