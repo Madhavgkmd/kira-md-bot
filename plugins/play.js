@@ -26,7 +26,7 @@ module.exports = {
             console.log("Query:", query);
 
             // ─────────────────────────────────────
-            // 1. SEND SEARCHING MESSAGE (Bold & Italic)
+            // 1. SEND SEARCHING MESSAGE
             // ─────────────────────────────────────
             statusMsg = await sock.sendMessage(jid, {
                 text: `🔍 _*Searching*_ : \`${query}\``
@@ -181,14 +181,14 @@ module.exports = {
             const audioBuffer = Buffer.from(audioResponse.data);
 
             // ─────────────────────────────────────
-            // SEND AUDIO
+            // SEND AUDIO (iOS Supported, No Cover Photo)
             // ─────────────────────────────────────
             console.log("Sending audio to WhatsApp...");
 
             await sock.sendMessage(jid, {
                 audio: audioBuffer,
-                mimetype: "audio/mpeg",
-                ptt: false
+                mimetype: "audio/mpeg", // 🔥 iOS compatibility
+                ptt: false // Voice note അല്ലാതെ സാധാരണ ഓഡിയോ ആയി അയക്കുന്നു
             }, { quoted: msg });
 
             console.log("✅ Audio sent successfully.");
@@ -212,7 +212,6 @@ module.exports = {
 
             const errorText = `❌ _*Download Failed*_ : \n\n⚠️ ${err.message || "An unexpected error occurred."}`;
 
-            // Edit the SAME message to show error
             if (statusMsg?.key) {
                 try {
                     await sock.sendMessage(jid, {
@@ -223,10 +222,10 @@ module.exports = {
                 } catch {}
             }
 
-            // Fallback if edit fails
             try {
                 await sock.sendMessage(jid, { text: errorText }, { quoted: msg });
             } catch {}
         }
     }
 };
+
