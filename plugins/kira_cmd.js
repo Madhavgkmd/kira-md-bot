@@ -76,7 +76,7 @@ module.exports = [
 
     // ─── 4. PINTEREST STALKER ───
     {
-        name: 'pin',
+        name: 'pinstalk',
         category: 'stalker',
         description: 'Stalk Pinterest profile',
         usage: '.pin <username>',
@@ -105,7 +105,7 @@ module.exports = [
 
     // ─── 5. INSTAGRAM STALKER ───
     {
-        name: 'insta',
+        name: 'instastalk',
         alias: ['igstalk'],
         category: 'stalker',
         description: 'Stalk Instagram profile',
@@ -135,7 +135,7 @@ module.exports = [
     // ─── 6. GITHUB STALKER ───
     {
         name: 'github',
-        alias: ['ghstalk'],
+        alias: ['gitstalk'],
         category: 'stalker',
         description: 'Stalk GitHub profile',
         usage: '.github <username>',
