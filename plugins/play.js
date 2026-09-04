@@ -1,12 +1,21 @@
-// plugins/play.js – KIRA X MD
+// plugins/play.js – KIRA X MD (Dynamic Metadata & Audio Downloader)
 const ytSearch = require('yt-search');
 const axios = require('axios');
+const ffmpeg = require('fluent-ffmpeg');
+const fs = require('fs');
+const path = require('path');
+const { getSettings } = require('../lib/database');
+
+const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
+if (fs.existsSync(ffmpegPath)) {
+    ffmpeg.setFfmpegPath(ffmpegPath);
+}
 
 module.exports = {
     name: 'play',
     alias: ['song', 'yta', 'music', 'audio'],
     category: 'downloader',
-    description: 'Search and play YouTube audio or use direct link',
+    description: 'Search and play YouTube audio with dynamic metadata',
     usage: `${process.env.PREFIX || '.'}play <song name or link>`,
 
     async execute(sock, msg, args) {
@@ -20,10 +29,18 @@ module.exports = {
         }
 
         let statusMsg = null;
+        let inputPath = null;
+        let outputPath = null;
 
         try {
             console.log("\n========== PLAY CMD ==========");
             console.log("Query:", query);
+
+            // Fetch Bot & Owner names dynamically
+            const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
+            const settings = typeof getSettings === 'function' ? (getSettings(botNumber) || {}) : {};
+            const botName = settings.botName || process.env.BOT_NAME || global.config?.BOT_NAME || 'KIRA X MD';
+            const ownerName = settings.ownerName || process.env.OWNER_NAME || global.config?.OWNER_NAME || 'Madhav';
 
             // ─────────────────────────────────────
             // 1. SEND SEARCHING MESSAGE
@@ -77,7 +94,7 @@ module.exports = {
                 if (!songInfo) {
                     songInfo = {
                         title: query,
-                        author: { name: "YouTube" }
+                        author: { name: ownerName }
                     };
                 }
             }
@@ -86,7 +103,7 @@ module.exports = {
             // 2. SONG DETAILS & DOWNLOADING MSG
             // ─────────────────────────────────────
             const title = songInfo?.title || "Unknown Song";
-            const artist = songInfo?.author?.name || "Unknown Artist";
+            const artist = songInfo?.author?.name || ownerName;
 
             const downloadText = `⬇️ _*Downloading*_ : ${title} | ${artist}`;
             console.log(`Downloading: ${title} by ${artist}`);
@@ -168,27 +185,71 @@ module.exports = {
             }
 
             // ─────────────────────────────────────
-            // DOWNLOAD AUDIO
+            // DOWNLOAD AUDIO TO TEMP FILE
             // ─────────────────────────────────────
-            console.log("Downloading audio buffer...");
+            console.log("Downloading audio stream...");
 
-            const audioResponse = await axios.get(audioUrl, {
-                responseType: "arraybuffer",
+            const tempDir = path.join(__dirname, "../temp");
+            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+            inputPath = path.join(tempDir, `raw_audio_${Date.now()}.mp3`);
+            outputPath = path.join(tempDir, `tagged_${Date.now()}.mp3`);
+
+            const audioResponse = await axios({
+                method: "GET",
+                url: audioUrl,
+                responseType: "stream",
                 timeout: 60000,
                 maxRedirects: 10,
                 headers: { "User-Agent": "Mozilla/5.0" }
             });
-            const audioBuffer = Buffer.from(audioResponse.data);
+
+            const writer = fs.createWriteStream(inputPath);
+            audioResponse.data.pipe(writer);
+
+            await new Promise((resolve, reject) => {
+                writer.on("finish", resolve);
+                writer.on("error", reject);
+            });
 
             // ─────────────────────────────────────
-            // SEND AUDIO (iOS Supported, No Cover Photo)
+            // INJECT DYNAMIC METADATA VIA FFMPEG
+            // ─────────────────────────────────────
+            console.log("Injecting dynamic tags via FFmpeg...");
+
+            await new Promise((resolve, reject) => {
+                ffmpeg(inputPath)
+                    .toFormat("mp3")
+                    .audioBitrate(128)
+                    .outputOptions([
+                        '-metadata', `title=${title}`,
+                        '-metadata', `artist=${ownerName}`,
+                        '-metadata', `album=${botName}`
+                    ])
+                    .on("end", () => {
+                        console.log("Metadata injection completed.");
+                        resolve();
+                    })
+                    .on("error", (err) => {
+                        console.warn("FFmpeg tagging failed, proceeding with raw audio:", err.message);
+                        resolve(); // Graceful fallback
+                    })
+                    .save(outputPath);
+            });
+
+            const finalPath = fs.existsSync(outputPath) ? outputPath : inputPath;
+            const finalBuffer = fs.readFileSync(finalPath);
+
+            // ─────────────────────────────────────
+            // SEND AUDIO TO WHATSAPP
             // ─────────────────────────────────────
             console.log("Sending audio to WhatsApp...");
 
             await sock.sendMessage(jid, {
-                audio: audioBuffer,
-                mimetype: "audio/mpeg", // 🔥 iOS compatibility
-                ptt: false // Voice note അല്ലാതെ സാധാരണ ഓഡിയോ ആയി അയക്കുന്നു
+                audio: finalBuffer,
+                mimetype: "audio/mpeg",
+                ptt: false,
+                fileName: `${botName.replace(/\s+/g, '_')}_${Date.now()}.mp3`
             }, { quoted: msg });
 
             console.log("✅ Audio sent successfully.");
@@ -225,7 +286,11 @@ module.exports = {
             try {
                 await sock.sendMessage(jid, { text: errorText }, { quoted: msg });
             } catch {}
+        } finally {
+            try {
+                if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+                if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+            } catch (e) {}
         }
     }
 };
-
