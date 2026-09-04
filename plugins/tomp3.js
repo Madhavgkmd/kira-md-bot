@@ -3,6 +3,7 @@ const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs");
 const path = require("path");
+const { getSettings } = require("../lib/database");
 
 const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
 if (fs.existsSync(ffmpegPath)) {
@@ -20,10 +21,15 @@ module.exports = {
         const jid = msg.key.remoteJid;
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
-        // 🔥 ബോട്ടിന്റെ നമ്പർ കൃത്യമായി കണ്ടുപിടിക്കുന്നു (എറർ ഫിക്സ് ചെയ്യാൻ)
+        // ബോട്ടിന്റെ നമ്പർ എടുക്കുന്നു
         const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
 
-        // 🔥 Disappearing Message ആണെങ്കിലും കൃത്യമായി വീഡിയോ എടുക്കാൻ
+        // ഡാറ്റാബേസിൽ നിന്നോ .env-ൽ നിന്നോ Dynamic ആയി പേരുകൾ എടുക്കുന്നു
+        const settings = typeof getSettings === 'function' ? (getSettings(botNumber) || {}) : {};
+        const botName = settings.botName || process.env.BOT_NAME || global.config?.BOT_NAME || 'KIRA X MD';
+        const ownerName = settings.ownerName || process.env.OWNER_NAME || global.config?.OWNER_NAME || 'Madhav';
+
+        // Disappearing / ViewOnce മെസ്സേജുകളിൽ നിന്നുള്ള വീഡിയോ കണ്ടെത്തുന്നു
         const videoMessage = quoted?.videoMessage || 
                              quoted?.ephemeralMessage?.message?.videoMessage || 
                              quoted?.viewOnceMessageV2?.message?.videoMessage;
@@ -38,7 +44,6 @@ module.exports = {
 
         let inputPath, outputPath;
         try {
-            // 🔥 Hang ആവാത്ത പുതിയ ഡൗൺലോഡ് സിസ്റ്റം
             const stream = await downloadContentFromMessage(videoMessage, 'video');
             let buffer = Buffer.from([]);
             for await (const chunk of stream) {
@@ -60,15 +65,15 @@ module.exports = {
             fs.writeFileSync(inputPath, buffer);
             console.log("🔄 [toMP3] Starting FFmpeg conversion...");
 
-            // FFmpeg Conversion
+            // FFmpeg വഴി dynamic ടാഗുകൾ ചേർക്കുന്നു
             await new Promise((resolve, reject) => {
                 ffmpeg(inputPath)
                     .toFormat("mp3")
                     .audioBitrate(128)
                     .outputOptions([
-                        '-metadata', `title=${global.config?.BOT_NAME || global.getBotName?.(botNumber) || 'KIRA X MD'}`, 
-                        '-metadata', `artist=${global.config?.OWNER_NAME || process.env.OWNER_NAME || 'Owner'}`,    
-                        '-metadata', `album=${global.config?.BOT_NAME || global.getBotName?.(botNumber) || 'KIRA X MD'}`
+                        '-metadata', `title=${botName}`, 
+                        '-metadata', `artist=${ownerName}`,    
+                        '-metadata', `album=${botName}`
                     ])
                     .on("end", () => {
                         console.log("✅ [toMP3] Conversion finished!");
@@ -84,12 +89,11 @@ module.exports = {
             const audioBuffer = fs.readFileSync(outputPath);
             console.log("📤 [toMP3] Sending Audio to WhatsApp...");
             
-            // ഓഡിയോ വാട്സാപ്പിലേക്ക് അയക്കുന്നു
             await sock.sendMessage(jid, {
                 audio: audioBuffer,
-                mimetype: "audio/mp4", // വാട്സാപ്പിൽ നേരിട്ട് പ്ലേ ആവാൻ
+                mimetype: "audio/mp4",
                 ptt: false, 
-                fileName: `KIRA_X_MD_${Date.now()}.mp3`,
+                fileName: `${botName.replace(/\s+/g, '_')}_${Date.now()}.mp3`,
             }, { quoted: msg }); 
 
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
@@ -103,7 +107,6 @@ module.exports = {
             }, { quoted: msg });
             
         } finally {
-            // ടെമ്പ് ഫയലുകൾ ഡിലീറ്റ് ആക്കുന്നു
             try {
                 if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
                 if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
@@ -111,3 +114,4 @@ module.exports = {
         }
     }
 };
+
