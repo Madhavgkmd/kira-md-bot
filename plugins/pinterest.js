@@ -2,49 +2,6 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-// ─────────────────────────────────────────
-// API ഇല്ലാതെ നേരിട്ട് Pinterest ഇമേജുകൾ സെർച്ച് ചെയ്യുന്ന ഫംഗ്ഷൻ
-// ─────────────────────────────────────────
-async function directPinSearch(query) {
-    try {
-        const url = `https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=%2Fsearch%2Fpins%2F%3Fq%3D${encodeURIComponent(query)}&data=${encodeURIComponent(JSON.stringify({
-            options: {
-                isPrefetch: false,
-                query: query,
-                scope: "pins",
-                no_fetch_context_on_resource: false
-            },
-            context: {}
-        }))}`;
-
-        const res = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-                'Referer': 'https://www.pinterest.com/',
-                'Accept': 'application/json, text/javascript, */*, q=0.01',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            timeout: 15000
-        });
-
-        const results = res.data?.resource_response?.data?.results || [];
-        const images = [];
-
-        for (const pin of results) {
-            const img = pin.images?.orig?.url || pin.images?.['736x']?.url || pin.images?.['474x']?.url;
-            if (img && !images.includes(img)) {
-                images.push(img);
-            }
-            if (images.length >= 5) break; // പരമാവധി 5 ഫോട്ടോകൾ എടുക്കുന്നു
-        }
-
-        return images;
-    } catch (e) {
-        console.error("Direct Pinterest Scraper Error:", e.message);
-        return [];
-    }
-}
-
 module.exports = {
     name: 'pinterest',
     alias: ['pin', 'pindl', 'pinsearch'],
@@ -68,7 +25,7 @@ module.exports = {
 
         if (isUrlMatch) {
             // ─────────────────────────────────────
-            // DOWNLOAD URL LOGIC (APIs USED)
+            // DOWNLOAD URL LOGIC
             // ─────────────────────────────────────
             const url = isUrlMatch[0];
             let filePath = '';
@@ -76,8 +33,8 @@ module.exports = {
 
             try {
                 const apis = [
-                    `https://jerrycoder.oggyapi.workers.dev/down/pinterest?url=${encodeURIComponent(url)}`,
                     `https://xeon-apis.onrender.com/pin?url=${encodeURIComponent(url)}`,
+                    `https://jerrycoder.oggyapi.workers.dev/down/pinterest?url=${encodeURIComponent(url)}`,
                     `https://api.siputzx.my.id/api/d/pinterest?url=${encodeURIComponent(url)}`,
                     `https://api.ryzendesu.vip/api/downloader/pinterest?url=${encodeURIComponent(url)}`,
                     `https://api-aswin-sparky.koyeb.app/api/downloader/pinterest?url=${encodeURIComponent(url)}`
@@ -97,7 +54,8 @@ module.exports = {
                         } else if (data.images && data.images.length > 0) {
                             mediaUrl = data.images[0];
                             isVideo = false;
-                        } else if (typeof data.result === 'string' && data.result.startsWith('http')) {
+                        } 
+                        else if (typeof data.result === 'string' && data.result.startsWith('http')) {
                             mediaUrl = data.result;
                         } else if (data.data && data.data.url) {
                             mediaUrl = data.data.url;
@@ -144,20 +102,23 @@ module.exports = {
                         });
 
                         const stats = fs.statSync(filePath);
+                        
                         if (stats.size < 5000) {
                             fs.unlinkSync(filePath);
-                            throw new Error("File corrupted or too small.");
+                            throw new Error("File is corrupted or too small.");
                         }
 
                         if (isVideo) {
                             await sock.sendMessage(jid, { 
                                 video: { url: filePath }, 
-                                mimetype: 'video/mp4' 
+                                mimetype: 'video/mp4'
+                                // Caption removed
                             }, { quoted: msg });
                         } else {
                             await sock.sendMessage(jid, { 
                                 image: { url: filePath }, 
-                                mimetype: 'image/jpeg' 
+                                mimetype: 'image/jpeg'
+                                // Caption removed
                             }, { quoted: msg });
                         }
 
@@ -183,37 +144,41 @@ module.exports = {
 
         } else {
             // ─────────────────────────────────────
-            // SEARCH LOGIC (DIRECT SCRAPING - NO API)
+            // SEARCH LOGIC (USING YOUR VERCEL API)
             // ─────────────────────────────────────
             try {
-                const results = await directPinSearch(input);
+                const searchUrl = `https://kiraxmd-api.vercel.app/api/pinsearch?q=${encodeURIComponent(input)}`;
+                const res = await axios.get(searchUrl, { timeout: 15000 });
+                
+                const results = res.data.result;
 
-                if (!results || results.length === 0) {
-                    throw new Error("No pins found.");
-                }
+                if (!results || results.length === 0) throw new Error("No pins found for your search.");
 
-                await sock.sendMessage(jid, { text: `📥 *Downloading ${results.length} pins for:* ${input}` }, { quoted: msg });
+                await sock.sendMessage(jid, { text: `📥 *Downloading ${results.length} pins for:* ${input}` });
 
                 let sentCount = 0;
 
                 for (const imgUrl of results) {
-                    try {
-                        const imgRes = await axios.get(imgUrl, {
-                            responseType: 'arraybuffer',
-                            timeout: 10000,
-                            headers: { 
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                                'Referer': 'https://www.pinterest.com/'
-                            }
-                        });
-                        
-                        await sock.sendMessage(jid, { 
-                            image: Buffer.from(imgRes.data), 
-                            mimetype: 'image/jpeg' 
-                        });
-                        sentCount++;
-                    } catch (e) {
-                        console.log("Failed to download image:", imgUrl);
+                    if (imgUrl) {
+                        try {
+                            const imgRes = await axios.get(imgUrl, {
+                                responseType: 'arraybuffer',
+                                timeout: 10000,
+                                headers: { 
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                                    'Referer': 'https://www.pinterest.com/'
+                                }
+                            });
+                            
+                            await sock.sendMessage(jid, { 
+                                image: Buffer.from(imgRes.data), 
+                                mimetype: 'image/jpeg'
+                                // Caption removed
+                            });
+                            sentCount++;
+                        } catch (e) {
+                            console.log("Failed to download image:", imgUrl);
+                        }
                     }
                 }
                 
@@ -222,10 +187,13 @@ module.exports = {
 
             } catch (err) {
                 console.error("Pinterest Search Error:", err.message); 
-                await sock.sendMessage(jid, { text: `❌ *Search failed:* Could not fetch Pinterest results directly.` }, { quoted: msg });
+                await sock.sendMessage(jid, { text: `❌ *Search failed:* Could not fetch results from API.` }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
             }
         }
     }
 };
 
+
+
+Download cheyyan api um search cheythu Photo ayakkan api illatheyum cheyy aadyam aayhaayirunnu
