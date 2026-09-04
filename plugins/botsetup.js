@@ -1,6 +1,17 @@
 const fs = require('fs');
 const path = require('path');
-const { updateSetting } = require('../lib/database');
+const db = require('../lib/database');
+
+// ഡാറ്റാബേസ് ഫംഗ്ഷൻ്റെ പേര് ഏതായാലും സുരക്ഷിതമായി അപ്ഡേറ്റ് ചെയ്യുന്ന ഹെൽപ്പർ
+function saveSettings(botNumber, dataObj) {
+    if (typeof db.updateSettings === 'function') {
+        db.updateSettings(botNumber, dataObj);
+    } else if (typeof db.updateSetting === 'function') {
+        for (const [key, value] of Object.entries(dataObj)) {
+            db.updateSetting(botNumber, key, value);
+        }
+    }
+}
 
 // ─────────────────────────────────────
 // HELPER: UPDATE .ENV FILE PERMANENTLY
@@ -42,7 +53,7 @@ module.exports = [
             if (!newName) return await sock.sendMessage(msg.key.remoteJid, { text: '⚠️ Example: .botname SashaBot' }, { quoted: msg });
             
             const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "");
-            updateSettings(botNumber, { botName: newName });
+            saveSettings(botNumber, { botName: newName });
             
             if (isMainBot(sock)) updateEnv('BOT_NAME', newName);
             
@@ -63,7 +74,7 @@ module.exports = [
             if (!newOwner) return await sock.sendMessage(msg.key.remoteJid, { text: '⚠️ Example: .setowner Rahul' }, { quoted: msg });
             
             const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "");
-            updateSettings(botNumber, { ownerName: newOwner });
+            saveSettings(botNumber, { ownerName: newOwner });
             
             if (isMainBot(sock)) updateEnv('OWNER_NAME', newOwner);
             
@@ -84,7 +95,7 @@ module.exports = [
             if (!newPrefix || newPrefix.length > 2) return await sock.sendMessage(msg.key.remoteJid, { text: '⚠️ Please provide a valid single character prefix.\nExample: .prefix !' }, { quoted: msg });
             
             const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "");
-            updateSettings(botNumber, { prefix: newPrefix });
+            saveSettings(botNumber, { prefix: newPrefix });
             
             if (isMainBot(sock)) updateEnv('PREFIX', newPrefix);
             
@@ -105,39 +116,47 @@ module.exports = [
             if (!url || !url.startsWith('http')) return await sock.sendMessage(msg.key.remoteJid, { text: '⚠️ Please provide a valid direct image URL.\nExample: .setphoto https://i.imgur.com/image.jpg' }, { quoted: msg });
             
             const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "");
-            updateSettings(botNumber, { menuImage: url });
+            saveSettings(botNumber, { menuImage: url });
             
             if (isMainBot(sock)) updateEnv('MENU_IMAGE', url);
             
             await sock.sendMessage(msg.key.remoteJid, { text: `✅ Menu Image updated successfully!\nURL: ${url}` }, { quoted: msg });
         }
     },
-    // 5. SET STICKER PACK & AUTHOR NAME
+    // 5. SET STICKER PACK & WATERMARK (PRESERVES EXACT FORMATTING)
     {
         name: 'setpack',
         alias: ['packname', 'author'],
         category: 'owner',
-        description: 'Change Sticker Pack Name & Author',
-        usage: '.setpack <Pack Name> | <Author Name>',
+        description: 'Change Sticker Pack Name and formatting exactly as typed',
+        usage: '.packname <Text with spaces and enters>',
         async execute(sock, msg, args, isOwner) {
             if (!isOwner) return await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner Only Command!' }, { quoted: msg });
             
-            const text = args.join(" ").trim();
-            if (!text || !text.includes('|')) return await sock.sendMessage(msg.key.remoteJid, { text: '⚠️ Example: .setpack MyPack | Madhav' }, { quoted: msg });
-            
-            const parts = text.split('|').map(v => v.trim());
-            const packName = parts[0] || 'KIRA X MD • Stickers';
-            const authorName = parts[1] || 'User';
-            
-            const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "");
-            updateSettings(botNumber, { packName: packName, authorName: authorName });
-            
-            if (isMainBot(sock)) {
-                updateEnv('PACK_NAME', packName);
-                updateEnv('AUTHOR_NAME', authorName);
+            // ഒറിജിനൽ മെസ്സേജിലെ വരികളും സ്പേസുകളും അതുപോലെ വേർതിരിച്ചെടുക്കുന്നു
+            const rawText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+            const firstWs = rawText.search(/\s/);
+            const customText = firstWs !== -1 ? rawText.substring(firstWs + 1) : "";
+
+            if (!customText.trim()) {
+                return await sock.sendMessage(msg.key.remoteJid, { 
+                    text: '⚠️ Please provide text!\nExample:\n.packname\n✦ ᴹᵃᵈʰᵃᵛ ✦\n​​₉₁₈₈₂₅₂₃₀₈' 
+                }, { quoted: msg });
             }
             
-            await sock.sendMessage(msg.key.remoteJid, { text: `✅ Sticker Pack details updated successfully!\n\n📦 Pack: *${packName}*\n✍️ Author: *${authorName}*` }, { quoted: msg });
+            const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "");
+            
+            // ടൈപ്പ് ചെയ്ത വാട്ടർമാർക്ക് മുഴുവനായി പാക്ക് നെയിമിലേക്ക് നൽകുന്നു
+            saveSettings(botNumber, { packName: customText, authorName: "" });
+            
+            if (isMainBot(sock)) {
+                updateEnv('PACK_NAME', customText.replace(/\n/g, '\\n'));
+                updateEnv('AUTHOR_NAME', '');
+            }
+            
+            await sock.sendMessage(msg.key.remoteJid, { 
+                text: `✅ *Sticker Watermark Updated!*\n\n${customText}` 
+            }, { quoted: msg });
         }
     },
     // 6. RESET TO DEFAULT CONFIG
@@ -151,7 +170,7 @@ module.exports = [
             if (!isOwner) return await sock.sendMessage(msg.key.remoteJid, { text: '❌ Owner Only Command!' }, { quoted: msg });
             
             const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "");
-            updateSettings(botNumber, {
+            saveSettings(botNumber, {
                 botName: "KIRA X MD",
                 ownerName: "Madhav",
                 menuImage: "https://files.catbox.moe/22x0j5.jpeg",
@@ -181,3 +200,4 @@ module.exports = [
         }
     }
 ];
+
