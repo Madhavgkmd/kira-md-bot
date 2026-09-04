@@ -1,10 +1,11 @@
-// plugins/sticker.js - KIRA X MD (Perfect Album & Multi-Image Sticker Support)
+// plugins/sticker.js - KIRA X MD (Perfect Formatting & Album Support)
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const sharp = require("sharp");
 const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs");
 const path = require("path");
 const webp = require("node-webpmux");
+const { getSettings } = require("../lib/database");
 
 const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
 if (fs.existsSync(ffmpegPath)) {
@@ -18,8 +19,8 @@ async function addMetadata(webpFilePath, packName, authorName) {
 
         const exifJSON = {
             "sticker-pack-id": "kira-x-md-sticker",
-            "sticker-pack-name": packName || "User",
-            "sticker-author-name": authorName || "KIRA X MD",
+            "sticker-pack-name": packName,
+            "sticker-author-name": authorName || "",
             "emojis": ["🔥", "✨"]
         };
 
@@ -111,7 +112,7 @@ module.exports = {
     name: "sticker",
     alias: ["s", "stik"],
     category: "sticker",
-    description: "Convert single/album/multiple images to stickers",
+    description: "Convert single/album/multiple images to stickers exactly as configured",
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
@@ -120,17 +121,16 @@ module.exports = {
 
         let mediaList = [];
 
-        // 1. നേരിട്ട് ഫോട്ടോയോടൊപ്പം `.s` അടിച്ചാൽ
+        // 1. നേരിട്ട് ഫോട്ടോയോടൊപ്പം കമാൻഡ് അടിച്ചാൽ
         if (currentMsg?.imageMessage || currentMsg?.videoMessage) {
             mediaList.push(currentMsg);
         }
-        // 2. സിംഗിൾ ഫോട്ടോയ്ക്കോ വീഡിയോയ്ക്കോ റിപ്ലൈ അടിച്ചാൽ
+        // 2. സിംഗിൾ ഫോട്ടോയ്ക്കോ വീഡിയോയ്ക്കോ ആൽബത്തിനോ റിപ്ലൈ അടിച്ചാൽ
         else if (quoted) {
             let mediaMsg = quoted;
             if (quoted.viewOnceMessageV2) mediaMsg = quoted.viewOnceMessageV2.message;
             else if (quoted.viewOnceMessage) mediaMsg = quoted.viewOnceMessage.message;
 
-            // 🔥 ആൽബം മെസ്സേജ് ആണോ എന്ന് പരിശോധിക്കുന്നു (Album Support)
             if (quoted.albumMessage && quoted.albumMessage.messages) {
                 for (const subMsg of quoted.albumMessage.messages) {
                     if (subMsg.message?.imageMessage || subMsg.message?.videoMessage) {
@@ -143,34 +143,37 @@ module.exports = {
             }
         }
 
-        // ഫോട്ടോയോ വീഡിയോയോ കിട്ടിയില്ലെങ്കിൽ
         if (mediaList.length === 0) {
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
             return await sock.sendMessage(jid, { text: "⚠️ *Please reply to an image/video or album!*" }, { quoted: msg });
         }
 
-        // PackName & Author Setup
-        const senderName = msg.pushName || "User";
-        const defaultPack = global.config?.PACK_NAME || process.env.PACK_NAME || "KIRA X MD";
-        const defaultAuthor = global.config?.AUTHOR_NAME || process.env.AUTHOR_NAME || senderName;
+        // ബോട്ടിന്റെ ഡാറ്റാബേസിൽ നിന്നോ .env-ൽ നിന്നോ സേവ് ചെയ്ത ഒറിജിനൽ PackName എടുക്കുന്നു
+        const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
+        const config = typeof getSettings === 'function' ? (getSettings(botNumber) || {}) : {};
         
-        let packName = defaultPack;
-        let authorName = defaultAuthor;
-        
-        if (args && args.length > 0) {
-            const fullText = args.join(" ");
-            if (fullText.includes("|")) {
-                const parts = fullText.split("|");
-                packName = parts[0].trim();
-                authorName = parts[1] ? parts[1].trim() : defaultAuthor;
+        let packName = config.packName || (process.env.PACK_NAME ? process.env.PACK_NAME.replace(/\\n/g, '\n') : "KIRA X MD");
+        let authorName = config.authorName || process.env.AUTHOR_NAME || "";
+
+        // ആരെങ്കിലും .s കമാൻഡിനൊപ്പം പ്രത്യേകം പേര് അടിച്ചാൽ അതിന്റെ ഫോർമാറ്റിംഗ് സംരക്ഷിക്കുന്നു
+        const rawText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+        const match = rawText.match(/^[^\w\s]*\s*(s|sticker|stik)\s*([\s\S]*)$/i);
+        const body = match && match[2] ? match[2] : "";
+
+        if (body.trim()) {
+            if (body.includes("|")) {
+                const parts = body.split("|");
+                packName = parts[0];
+                authorName = parts.slice(1).join("|");
             } else {
-                packName = fullText.trim();
+                packName = body;
+                authorName = "";
             }
         }
 
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-        // 🔥 ലൂപ്പ് വഴി ആൽബത്തിലെ എല്ലാ ഫോട്ടോകളും സ്റ്റിക്കർ ആക്കി മാറ്റുന്നു
+        // ആൽബത്തിലെ എല്ലാ ഫോട്ടോകളും സ്റ്റിക്കറാക്കി അയക്കുന്നു
         for (const media of mediaList) {
             let mMsg = media;
             if (mMsg.viewOnceMessageV2) mMsg = mMsg.viewOnceMessageV2.message;
@@ -182,3 +185,4 @@ module.exports = {
         await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
     }
 };
+
