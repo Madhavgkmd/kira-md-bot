@@ -121,11 +121,11 @@ module.exports = {
 
         let mediaList = [];
 
-        // 1. നേരിട്ട് ഫോട്ടോയോടൊപ്പം കമാൻഡ് അടിച്ചാൽ
+        // 1. Direct media caption command
         if (currentMsg?.imageMessage || currentMsg?.videoMessage) {
             mediaList.push(currentMsg);
         }
-        // 2. സിംഗിൾ ഫോട്ടോയ്ക്കോ വീഡിയോയ്ക്കോ ആൽബത്തിനോ റിപ്ലൈ അടിച്ചാൽ
+        // 2. Reply to media or album
         else if (quoted) {
             let mediaMsg = quoted;
             if (quoted.viewOnceMessageV2) mediaMsg = quoted.viewOnceMessageV2.message;
@@ -148,17 +148,17 @@ module.exports = {
             return await sock.sendMessage(jid, { text: "⚠️ *Please reply to an image/video or album!*" }, { quoted: msg });
         }
 
-        // ബോട്ടിന്റെ ഡാറ്റാബേസിൽ നിന്നോ .env-ൽ നിന്നോ സേവ് ചെയ്ത ഒറിജിനൽ PackName എടുക്കുന്നു
+        // Fetch configured packName and author from database or environment variables
         const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
         const config = typeof getSettings === 'function' ? (getSettings(botNumber) || {}) : {};
         
         let packName = config.packName || (process.env.PACK_NAME ? process.env.PACK_NAME.replace(/\\n/g, '\n') : "KIRA X MD");
         let authorName = config.authorName || process.env.AUTHOR_NAME || "";
 
-        // ആരെങ്കിലും .s കമാൻഡിനൊപ്പം പ്രത്യേകം പേര് അടിച്ചാൽ അതിന്റെ ഫോർമാറ്റിംഗ് സംരക്ഷിക്കുന്നു
+        // Extract custom text safely without splitting command aliases improperly
         const rawText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
-        const match = rawText.match(/^[^\w\s]*\s*(s|sticker|stik)\s*([\s\S]*)$/i);
-        const body = match && match[2] ? match[2] : "";
+        const match = rawText.match(/^[^\w\s]*\s*(?:sticker|stik|s)(?:\s+([\s\S]*))?$/i);
+        const body = match && match[1] ? match[1] : "";
 
         if (body.trim()) {
             if (body.includes("|")) {
@@ -173,7 +173,7 @@ module.exports = {
 
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-        // ആൽബത്തിലെ എല്ലാ ഫോട്ടോകളും സ്റ്റിക്കറാക്കി അയക്കുന്നു
+        // Process all items in list
         for (const media of mediaList) {
             let mMsg = media;
             if (mMsg.viewOnceMessageV2) mMsg = mMsg.viewOnceMessageV2.message;
