@@ -59,22 +59,22 @@ module.exports = [
 ┃ 02. *Auto DL Groups* : ⟨ ${config.autoDlAllGroups ? "ON" : "OFF"} ⟩
 ┃ 03. *Auto DL DM* : ⟨ ${config.autoDlAllDms ? "ON" : "OFF"} ⟩
 ┃ 04. *Anti Delete* : ⟨ ${(config.antiDeleteChats || []).includes(jid) ? "ON" : "OFF"} ⟩
-┃ 05. *Welcome* : ⟨ ${(config.welcomeChats || []).includes(jid) ? "ON" : "OFF"} ⟩
-┃ 06. *Goodbye* : ⟨ ${(config.goodbyeChats || []).includes(jid) ? "ON" : "OFF"} ⟩
-┃ 07. *Anti Link* : ⟨ ${(config.antilinkChats || []).includes(jid) ? "ON" : "OFF"} ⟩
-┃ 08. *Call Reject* : ⟨ ${config.callReject ? "ON" : "OFF"} ⟩
-┃ 09. *Bot Online* : ⟨ ${config.botOnline ? "ON" : "OFF"} ⟩
-┃ 10. *Auto Read* : ⟨ ${config.autoRead ? "ON" : "OFF"} ⟩
-┃ 11. *Auto React* : ⟨ ${config.autoReact ? "ON" : "OFF"} ⟩
-┃ 12. *Auto Reply* : ⟨ ${config.autoReply ? "ON" : "OFF"} ⟩
-┃ 13. *Without Handler* : ⟨ ${config.withoutHandler ? "ON" : "OFF"} ⟩
-┃ 14. *Auto Status* : ⟨ ${config.autoStatusView ? "ON" : "OFF"} ⟩
+┃ 05. *Anti Link* : ⟨ ${(config.antilinkChats || []).includes(jid) ? "ON" : "OFF"} ⟩
+┃ 06. *Call Reject* : ⟨ ${config.callReject ? "ON" : "OFF"} ⟩
+┃ 07. *Bot Online* : ⟨ ${config.botOnline ? "ON" : "OFF"} ⟩
+┃ 08. *Auto Read* : ⟨ ${config.autoRead ? "ON" : "OFF"} ⟩
+┃ 09. *Auto React* : ⟨ ${config.autoReact ? "ON" : "OFF"} ⟩
+┃ 10. *Auto Reply* : ⟨ ${config.autoReply ? "ON" : "OFF"} ⟩
+┃ 11. *Without Handler* : ⟨ ${config.withoutHandler ? "ON" : "OFF"} ⟩
+┃ 12. *Auto Status* : ⟨ ${config.autoStatusView ? "ON" : "OFF"} ⟩
+┃ 13. *Auto Typing* : ⟨ ${config.autoTyping ? "ON" : "OFF"} ⟩
+┃ 14. *Auto Recording* : ⟨ ${config.autoRecording ? "ON" : "OFF"} ⟩
 ┃
 ┣ 📌 *How to change?*
 ┃ ➾ ${prefix}<name> <on/off>
 ┃
 ┃ *Examples:*
-┃ ➾ ${prefix}mode private
+┃ ➾ ${prefix}autotyping on
 ┃ ➾ ${prefix}botonline off
 ╰━━━━━━━━━━━━━━━━━━━⬣`;
 
@@ -82,7 +82,7 @@ module.exports = [
         }
     },
     
-    // 2. MODE (BULLETPROOF FIX)
+    // 2. MODE
     {
         name: "mode",
         category: "owner",
@@ -102,7 +102,7 @@ module.exports = [
             }
 
             updateSetting(botNumber, "botMode", state);
-            global.botMode = state; // Backup Check
+            global.botMode = state;
             
             await sock.sendMessage(jid, { text: `✅ *MODE* changed to *${state.toUpperCase()}*` }, { quoted: msg });
         }
@@ -140,27 +140,7 @@ module.exports = [
         }
     },
 
-    // 6. WELCOME
-    {
-        name: "welcome",
-        category: "owner",
-        async execute(sock, msg, args, isOwner) {
-            if (!isOwner) return;
-            await toggleSetting(sock, msg, "welcomeChats", args[0]?.toLowerCase(), true);
-        }
-    },
-
-    // 7. GOODBYE
-    {
-        name: "goodbye",
-        category: "owner",
-        async execute(sock, msg, args, isOwner) {
-            if (!isOwner) return;
-            await toggleSetting(sock, msg, "goodbyeChats", args[0]?.toLowerCase(), true);
-        }
-    },
-
-    // 8. ANTI LINK
+    // 6. ANTI LINK
     {
         name: "antilink",
         category: "owner",
@@ -170,7 +150,7 @@ module.exports = [
         }
     },
 
-    // 9. CALL REJECT
+    // 7. CALL REJECT
     {
         name: "callreject",
         category: "owner",
@@ -180,19 +160,14 @@ module.exports = [
         }
     },
 
-    // 10. BOT ONLINE (🔥 LIVE STATUS UPDATE ADDED 🔥)
+    // 8. BOT ONLINE
     {
         name: "botonline",
         category: "owner",
         async execute(sock, msg, args, isOwner) {
             if (!isOwner) return;
-            
             const state = args[0]?.toLowerCase();
-            
-            // 1. ഡാറ്റാബേസിൽ അപ്ഡേറ്റ് ചെയ്യുകയും റിപ്ലൈ കൊടുക്കുകയും ചെയ്യുന്നു
             await toggleSetting(sock, msg, "botOnline", state);
-            
-            // 2. ഒപ്പം വാട്സാപ്പിൽ ലൈവ് ആയി ഓൺലൈൻ/ഓഫ്‌ലൈൻ സ്റ്റാറ്റസ് മാറ്റുന്നു
             if (state === "on" || state === "true") {
                 await sock.sendPresenceUpdate('available');
             } else if (state === "off" || state === "false") {
@@ -201,7 +176,7 @@ module.exports = [
         }
     },
 
-    // 11. AUTO READ
+    // 9. AUTO READ
     {
         name: "autoread",
         alias: ["read"],
@@ -212,7 +187,7 @@ module.exports = [
         }
     },
 
-    // 12. AUTO REACT
+    // 10. AUTO REACT
     {
         name: "autoreact",
         alias: ["react"],
@@ -223,7 +198,7 @@ module.exports = [
         }
     },
 
-    // 13. AUTO REPLY
+    // 11. AUTO REPLY
     {
         name: "autoreply",
         alias: ["reply"],
@@ -234,7 +209,7 @@ module.exports = [
         }
     },
 
-    // 14. WITHOUT HANDLER
+    // 12. WITHOUT HANDLER
     {
         name: "withouthandler",
         alias: ["handler"],
@@ -245,7 +220,7 @@ module.exports = [
         }
     },
 
-    // 15. AUTO STATUS VIEW
+    // 13. AUTO STATUS VIEW
     {
         name: "autostatus",
         alias: ["statusview", "status"],
@@ -254,5 +229,28 @@ module.exports = [
             if (!isOwner) return;
             await toggleSetting(sock, msg, "autoStatusView", args[0]?.toLowerCase());
         }
+    },
+
+    // 14. AUTO TYPING
+    {
+        name: "autotyping",
+        alias: ["typing"],
+        category: "owner",
+        async execute(sock, msg, args, isOwner) {
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoTyping", args[0]?.toLowerCase());
+        }
+    },
+
+    // 15. AUTO RECORDING
+    {
+        name: "autorecording",
+        alias: ["recording"],
+        category: "owner",
+        async execute(sock, msg, args, isOwner) {
+            if (!isOwner) return;
+            await toggleSetting(sock, msg, "autoRecording", args[0]?.toLowerCase());
+        }
     }
 ];
+
