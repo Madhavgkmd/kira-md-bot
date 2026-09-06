@@ -1,72 +1,131 @@
+// plugins/menu.js - KIRA X MD (Session Based Real User Tracking & Clean Elegant Line Style)
+const os = require("os");
+const fs = require("fs");
+const path = require("path");
 const { getSettings } = require("../lib/database");
+
+// Helper to count users directly from WhatsApp Session files
+// This accurately tracks EVERYONE who interacts with the bot!
+function getTotalUsers() {
+    try {
+        const sessionPath = path.join(process.cwd(), "session");
+        if (!fs.existsSync(sessionPath)) return 1;
+        
+        const files = fs.readdirSync(sessionPath);
+        const uniqueUsers = new Set();
+        
+        files.forEach(file => {
+            // Extracting user numbers from Baileys encryption keys
+            const match = file.match(/(\d+)(@|%40)s\.whatsapp\.net/i);
+            if (match) {
+                uniqueUsers.add(match[1]);
+            }
+        });
+        
+        return uniqueUsers.size > 0 ? uniqueUsers.size : 1;
+    } catch {
+        return 1;
+    }
+}
+
+// Helper function to convert text safely into small-caps font
+function toSmallCaps(str) {
+    if (!str || typeof str !== "string") return "";
+    
+    const smallCapsMap = {
+        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ',
+        'h': 'ʜ', 'i': 'ɪ', 'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ',
+        'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ', 's': 's', 't': 'ᴛ', 'u': 'ᴜ',
+        'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
+        '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆',
+        '7': '₇', '8': '₈', '9': '₉'
+    };
+
+    return str.toLowerCase().split('').map(char => smallCapsMap[char] || char).join('');
+}
 
 module.exports = {
     name: "menu",
     alias: ["help", "commands"],
     category: "main",
+    description: "Display command list with system telemetry",
 
     async execute(sock, msg) {
         const jid = msg.key.remoteJid;
         const pushname = msg.pushName || "User";
         const prefix = process.env.PREFIX || ".";
-        
-        // 🔥 കമാൻഡ് അടിക്കുമ്പോൾ തന്നെ വരുന്ന റിയാക്ഷൻ
+
+        // Read total active users from session keys dynamically
+        const totalUsersCount = getTotalUsers();
+
         await sock.sendMessage(jid, { react: { text: "📜", key: msg.key } });
-        
-        // 🔥 ബോട്ടിന്റെ നമ്പർ കണ്ടുപിടിക്കുന്നു (എറർ മാറ്റാൻ ഇത് നിർബന്ധമാണ്)
+
         const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
-        
-        // ഡാറ്റാബേസിൽ നിന്ന് ആ ബോട്ടിന്റെ കറക്റ്റ് സെറ്റിങ്സ് എടുക്കുന്നു
-        const config = getSettings(botNumber) || {};
-        
-        // 🔥 Dynamic Bot, Owner & Image (Independent for Main & Pair Bots)
+        const config = typeof getSettings === 'function' ? (getSettings(botNumber) || {}) : {};
+
         const botName = config.botName || process.env.BOT_NAME || "KIRA X MD";
         const ownerName = config.ownerName || process.env.OWNER_NAME || "Madhav";
         const menuImage = config.menuImage || process.env.MENU_IMAGE || "https://files.catbox.moe/22x0j5.jpeg";
-        
-        const mode = global.botMode || config.botMode || "public"; 
-        
-        // Uptime Calculation
+        const mode = (global.botMode || config.botMode || "public").toUpperCase();
+
+        // Uptime calculations with seconds
         const uptime = process.uptime();
-        const h = Math.floor(uptime / 3600);
+        const d = Math.floor(uptime / (3600 * 24));
+        const h = Math.floor((uptime % (3600 * 24)) / 3600);
         const m = Math.floor((uptime % 3600) / 60);
         const s = Math.floor(uptime % 60);
-        const uptimeText = `${h}h ${m}m ${s}s`;
+        const uptimeString = d > 0 ? `${d}d ${h}h ${m}m ${s}s` : `${h}h ${m}m ${s}s`;
 
-        const commands = global.commands || [];
+        // Telemetry stats in GB
+        const totalMemGB = (os.totalmem() / (1024 * 1024 * 1024)).toFixed(1);
+        const usedMemGB = ((os.totalmem() - os.freemem()) / (1024 * 1024 * 1024)).toFixed(1);
+        const platform = os.platform();
+
+        const rawCommands = global.commands || [];
         const categories = {};
+        let validCommandCount = 0;
 
-        for (const cmd of commands) {
-            const cat = (cmd.category || "other").toUpperCase();
-            if (!categories[cat]) categories[cat] = [];
-            categories[cat].push(`${prefix}${cmd.name}`);
+        for (const item of rawCommands) {
+            const cmdList = Array.isArray(item) ? item : [item];
+            for (const cmd of cmdList) {
+                if (!cmd || !cmd.name) continue;
+                const cat = (cmd.category || "other").toUpperCase();
+                if (!categories[cat]) categories[cat] = [];
+                categories[cat].push(String(cmd.name));
+                validCommandCount++;
+            }
         }
 
-        // 🔥 Horror Glitch Menu Design
-        let menu = `🩸 ${botName.split('').join(' ')} 🩸\n\n`;
-        menu += `╔══════════════ ♱\n`;
-        menu += `╠ ♱ ᴜsᴇʀ : ${pushname}\n`;
-        menu += `╠ ♱ ᴏᴡɴᴇʀ : ${ownerName}\n`;
-        menu += `╠ ♱ ᴘʀᴇғɪx : ${prefix}\n`;
-        menu += `╠ ♱ ᴍᴏᴅᴇ : ${mode.toUpperCase()}\n`;
-        menu += `╠ ♱ ᴜᴘᴛɪᴍᴇ : ${uptimeText}\n`;
-        menu += `╠ ♱ ᴘʟᴜɢɪɴs : ${commands.length}\n`;
-        menu += `╚══════════════ ♱\n\n`;
+        // Elegant Line Formatting
+        let menu = `─── ❖ ${botName} ❖ ───\n\n`;
+        
+        menu += `  [ ᴜsᴇʀ ]\n`;
+        menu += `  • ɴᴀᴍᴇ    : ${pushname}\n`;
+        menu += `  • ᴘʀᴇғɪx  : ${prefix}\n`;
+        menu += `  • ᴜsᴇʀs   : ${totalUsersCount.toLocaleString()}\n\n`;
+
+        menu += `  [ sʏsᴛᴇᴍ ]\n`;
+        menu += `  • ᴏᴡɴᴇʀ   : ${ownerName}\n`;
+        menu += `  • ᴍᴏᴅᴇ    : ${mode}\n`;
+        menu += `  • ᴘʟᴀᴛғᴏʀᴍ: ${platform}\n`;
+        menu += `  • ᴍᴇᴍᴏʀʏ  : ${usedMemGB} GB / ${totalMemGB} GB\n`;
+        menu += `  • ᴜᴘᴛɪᴍᴇ  : ${uptimeString}\n`;
+        menu += `  • ᴘʟᴜɢɪɴs : ${validCommandCount}\n\n`;
 
         for (const category of Object.keys(categories)) {
-            menu += `♱ ── ❴ ${category} ❵ ── ♱\n`;
-            for (const cmd of categories[category]) {
-                menu += `╟ ♡ ${cmd}\n`;
+            menu += `── ❪ ${category} ❫ ──\n`;
+            for (const cmdName of categories[category]) {
+                menu += `  ◈ ${prefix}${toSmallCaps(cmdName)}\n`;
             }
-            menu += `╚══════════════ ♱\n\n`;
+            menu += `\n`;
         }
 
-        menu += `> *${botName}*`;
+        menu += `> ${botName} • 2026`;
 
-        // 🔥 കൃത്യമായി യൂസറുടെ മെസ്സേജിന് റിപ്ലൈ ആയി ഇമേജും മെനുവും അയക്കുന്നു
         await sock.sendMessage(jid, {
             image: { url: menuImage },
             caption: menu
         }, { quoted: msg });
     }
 };
+
