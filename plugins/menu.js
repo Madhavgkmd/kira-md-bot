@@ -1,32 +1,6 @@
-// plugins/menu.js - KIRA X MD (Session Based Real User Tracking & Clean Elegant Line Style)
+// plugins/menu.js - KIRA X MD (Accurate Global User Tracking)
 const os = require("os");
-const fs = require("fs");
-const path = require("path");
 const { getSettings } = require("../lib/database");
-
-// Helper to count users directly from WhatsApp Session files
-// This accurately tracks EVERYONE who interacts with the bot!
-function getTotalUsers() {
-    try {
-        const sessionPath = path.join(process.cwd(), "session");
-        if (!fs.existsSync(sessionPath)) return 1;
-        
-        const files = fs.readdirSync(sessionPath);
-        const uniqueUsers = new Set();
-        
-        files.forEach(file => {
-            // Extracting user numbers from Baileys encryption keys
-            const match = file.match(/(\d+)(@|%40)s\.whatsapp\.net/i);
-            if (match) {
-                uniqueUsers.add(match[1]);
-            }
-        });
-        
-        return uniqueUsers.size > 0 ? uniqueUsers.size : 1;
-    } catch {
-        return 1;
-    }
-}
 
 // Helper function to convert text safely into small-caps font
 function toSmallCaps(str) {
@@ -55,9 +29,6 @@ module.exports = {
         const pushname = msg.pushName || "User";
         const prefix = process.env.PREFIX || ".";
 
-        // Read total active users from session keys dynamically
-        const totalUsersCount = getTotalUsers();
-
         await sock.sendMessage(jid, { react: { text: "📜", key: msg.key } });
 
         const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
@@ -67,6 +38,9 @@ module.exports = {
         const ownerName = config.ownerName || process.env.OWNER_NAME || "Madhav";
         const menuImage = config.menuImage || process.env.MENU_IMAGE || "https://files.catbox.moe/22x0j5.jpeg";
         const mode = (global.botMode || config.botMode || "public").toUpperCase();
+
+        // Fetch Live Total Users
+        const totalUsersCount = global.totalBotUsers ? global.totalBotUsers.size : 1;
 
         // Uptime calculations with seconds
         const uptime = process.uptime();
@@ -128,4 +102,3 @@ module.exports = {
         }, { quoted: msg });
     }
 };
-
