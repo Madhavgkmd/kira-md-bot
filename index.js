@@ -60,7 +60,7 @@ process.on("uncaughtException", (err) => { console.error("❌ UNCAUGHT EXCEPTION
 process.on("unhandledRejection", (reason) => { console.error("❌ UNHANDLED REJECTION:", reason); });
 
 // ============================================================
-// GLOBALS
+// GLOBALS & PERSISTENT USER TRACKER
 // ============================================================
 global.messageStore = global.messageStore || {};
 global.gameSessions = global.gameSessions || {};
@@ -68,6 +68,33 @@ global.antiFakeChats = global.antiFakeChats || [];
 global.antiBotChats = global.antiBotChats || [];
 global.sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 global.startTime = Date.now();
+
+// ── Persistent Users Storage ──
+const usersFile = path.join(process.cwd(), "temp", "bot_users.json");
+function loadTotalUsers() {
+    try {
+        const tempDir = path.join(process.cwd(), "temp");
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        if (fs.existsSync(usersFile)) {
+            const data = JSON.parse(fs.readFileSync(usersFile, "utf8"));
+            return new Set(Array.isArray(data) ? data : []);
+        }
+    } catch (e) {}
+    return new Set();
+}
+
+global.totalBotUsers = loadTotalUsers();
+
+function recordBotUser(sender) {
+    if (!sender) return;
+    const cleanNum = sender.split("@")[0].replace(/[^0-9]/g, "");
+    if (cleanNum && !global.totalBotUsers.has(cleanNum)) {
+        global.totalBotUsers.add(cleanNum);
+        try {
+            fs.writeFileSync(usersFile, JSON.stringify([...global.totalBotUsers]));
+        } catch (e) {}
+    }
+}
 
 const mainOwnerPhone = process.env.OWNER_NUMBER || process.env.BOT_NUMBER || "";
 global.ownerNumber = mainOwnerPhone.replace(/[^0-9]/g, "") + "@s.whatsapp.net";
@@ -307,6 +334,21 @@ async function startKira() {
                     const sudo = isSudo(sender); 
                     const isOwnerOrSudo = isOwner || sudo; 
                     const text = getMessageText(msg);
+
+                    // 🎯 REAL USER REGISTRATION (Tracks everyone interacting with the bot!)
+                    if (!msg.key.fromMe && sender) {
+                        recordBotUser(sender);
+                    }
+
+                    // 🔥 AUTO TYPING & AUTO RECORDING PRESENCE 🔥
+                    if (!msg.key.fromMe) {
+                        if (config.autoTyping) {
+                            await sock.sendPresenceUpdate('composing', jid).catch(() => {});
+                        }
+                        if (config.autoRecording) {
+                            await sock.sendPresenceUpdate('recording', jid).catch(() => {});
+                        }
+                    }
 
                     const cleanText = text.replace(/[\u200B-\u200D\uFEFF\u200E\u200F\s]/g, '');
                     const hasMedia = msg.message.imageMessage || msg.message.videoMessage || msg.message.stickerMessage || msg.message.documentMessage || msg.message.audioMessage || msg.message.contactMessage;
