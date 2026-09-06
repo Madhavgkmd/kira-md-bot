@@ -251,13 +251,12 @@ async function startKira() {
         sock.ev.on("messages.delete", async ({ keys }) => { if (!Array.isArray(keys)) return; for (const key of keys) { await handleDelete(key); } });
         sock.ev.on("messages.update", async (updates) => { try { for (const update of updates) { if (update.update?.message === null) { await handleDelete(update.key); } } } catch (err) {} });
 
+        // Group security protections (Anti-Fake & Anti-Bot)
         sock.ev.on("group-participants.update", async (update) => {
             try {
-                const botNumber = getBotNumber(sock); if (!botNumber) return; const config = getSettings(botNumber); const jid = update.id; const action = update.action; if (!Array.isArray(update.participants)) return;
+                const jid = update.id; const action = update.action; if (!Array.isArray(update.participants)) return;
                 for (const participant of update.participants) {
                     const user = typeof participant === "string" ? participant : participant.id; if (!user) continue;
-                    if ((action === "add" || action === "join") && config.welcomeChats?.includes(jid)) { try { await sock.sendMessage(jid, { text: `🎉 *Welcome @${user.split("@")[0]}!*`, mentions: [user] }); } catch {} }
-                    if ((action === "remove" || action === "leave") && config.goodbyeChats?.includes(jid)) { try { await sock.sendMessage(jid, { text: `👋 *Goodbye @${user.split("@")[0]}!*`, mentions: [user] }); } catch {} }
                     if ((action === "add" || action === "join") && global.antiFakeChats?.includes(jid)) { const number = user.split("@")[0].replace(/[^0-9]/g, ""); if (number && !number.startsWith("91")) { try { await sock.groupParticipantsUpdate(jid, [user], "remove"); } catch {} } }
                     if ((action === "add" || action === "join") && global.antiBotChats?.includes(jid)) { if (user.includes(":")) { try { await sock.groupParticipantsUpdate(jid, [user], "remove"); } catch {} } }
                 }
@@ -274,7 +273,7 @@ async function startKira() {
 
                     const msgId = msg.key.id || "";
                     
-                    // 🛡️ ANTI-BOT FIX: Ignore common bot IDs
+                    // ANTI-BOT FIX
                     const isFromOtherBot = (msgId.startsWith("BAE5") || msgId.startsWith("3EB0") || msgId.length === 16 || msgId.length === 22 || msgId.startsWith("KIRA")) && !msg.key.fromMe;
                     if (isFromOtherBot) continue;
 
@@ -309,15 +308,11 @@ async function startKira() {
                     const isOwnerOrSudo = isOwner || sudo; 
                     const text = getMessageText(msg);
 
-                    // 🛑 KILL SWITCH 1: INVISIBLE SPAM BLOCKER
-                    // അദൃശ്യമായ അക്ഷരങ്ങൾ നീക്കി ടെക്സ്റ്റ് ശൂന്യമാണോ എന്ന് നോക്കുന്നു
                     const cleanText = text.replace(/[\u200B-\u200D\uFEFF\u200E\u200F\s]/g, '');
                     const hasMedia = msg.message.imageMessage || msg.message.videoMessage || msg.message.stickerMessage || msg.message.documentMessage || msg.message.audioMessage || msg.message.contactMessage;
                     
-                    if (!cleanText && !hasMedia) continue; // മീഡിയ ഇല്ലാത്ത ശൂന്യമായ മെസ്സേജുകൾ കംപ്ലീറ്റ് ഇഗ്നോർ ചെയ്യുന്നു
+                    if (!cleanText && !hasMedia) continue;
 
-                    // 🛑 KILL SWITCH 2: RATE LIMITER (ANTI-LOOP)
-                    // ഒരാൾ 1 സെക്കൻഡിനുള്ളിൽ അയക്കുന്ന മെസ്സേജുകൾ സ്പാം ആയി കണ്ട് ബ്ലോക്ക് ചെയ്യുന്നു
                     global.msgRateLimit = global.msgRateLimit || {};
                     const rateLimitKey = `${jid}:${sender}`;
                     const currentTime = Date.now();
@@ -329,9 +324,7 @@ async function startKira() {
 
                     const prefix = process.env.PREFIX || ".";
 
-                    // 🛡️ SELF-SPAM FIX: ബോട്ട് സ്വയം അയക്കുന്ന മെസ്സേജുകൾ കമാൻഡ് അല്ലെങ്കിൽ ഇഗ്നോർ ചെയ്യും
                     if (msg.key.fromMe && !text.startsWith(prefix)) continue;
-
                     if (config.botMode === "private" && !isOwnerOrSudo) continue;
                     if (config.autoRead && !msg.key.fromMe) { try { await sock.readMessages([msg.key]); } catch {} }
                     if (config.autoReact && !msg.key.fromMe) { const emojis = ["❤️", "🎀", "😎", "🫣", "🫀", "😭", "🥰", "🍁"]; const emoji = emojis[Math.floor(Math.random() * emojis.length)]; sock.sendMessage(jid, { react: { text: emoji, key: msg.key } }).catch(() => {}); }
@@ -393,10 +386,13 @@ async function startKira() {
             } catch (err) { console.error("❌ Message handler error:", err); }
         });
 
-        // LOAD PLUGINS
+        // ============================================================
+        // LOAD SPECIAL EVENT PLUGINS
+        // ============================================================
         try { const antiPromotePlugin = require("./plugins/antipromote.js"); if (antiPromotePlugin && typeof antiPromotePlugin.initAntiPromote === "function") { antiPromotePlugin.initAntiPromote(sock); } } catch (err) {}
         try { const groupManager = require("./plugins/group_manager.js"); if (groupManager && typeof groupManager.initGroupEvents === "function") { groupManager.initGroupEvents(sock); } } catch (err) {}
-        try { const mentionMePlugin = require("./plugins/mentionme.js"); if (mentionMePlugin && typeof mentionMePlugin.initMentionMe === "function") { mentionMePlugin.initMentionMe(sock); } } catch (err) {}
+        try { const mentionMePlugin = require("./plugins/mentionme.js"); if (mentionMePlugin && typeof mentionMePlugin.initMentionMe === "function") {[span_0](start_span)[span_0](end_span) mentionMePlugin.initMentionMe(sock); } } catch (err) {}[span_1](start_span)[span_1](end_span)
+        try { const greetingPlugin = require("./plugins/greeting.js"); if (greetingPlugin && typeof greetingPlugin.initGreeting === "function") { greetingPlugin.initGreeting(sock); } } catch (err) {}
 
         return sock;
     } catch (err) { starting = false; if (!reconnectTimer) { reconnectTimer = setTimeout(async () => { reconnectTimer = null; try { await startKira(); } catch (reconnectError) {} }, 5000); } }
