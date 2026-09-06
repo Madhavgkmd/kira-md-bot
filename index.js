@@ -391,7 +391,7 @@ async function startKira() {
         // ============================================================
         try { const antiPromotePlugin = require("./plugins/antipromote.js"); if (antiPromotePlugin && typeof antiPromotePlugin.initAntiPromote === "function") { antiPromotePlugin.initAntiPromote(sock); } } catch (err) {}
         try { const groupManager = require("./plugins/group_manager.js"); if (groupManager && typeof groupManager.initGroupEvents === "function") { groupManager.initGroupEvents(sock); } } catch (err) {}
-        try { const mentionMePlugin = require("./plugins/mentionme.js"); if (mentionMePlugin && typeof mentionMePlugin.initMentionMe === "function") {[span_0](start_span)[span_0](end_span) mentionMePlugin.initMentionMe(sock); } } catch (err) {}[span_1](start_span)[span_1](end_span)
+        try { const mentionMePlugin = require("./plugins/mentionme.js"); if (mentionMePlugin && typeof mentionMePlugin.initMentionMe === "function") { mentionMePlugin.initMentionMe(sock); } } catch (err) {}
         try { const greetingPlugin = require("./plugins/greeting.js"); if (greetingPlugin && typeof greetingPlugin.initGreeting === "function") { greetingPlugin.initGreeting(sock); } } catch (err) {}
 
         return sock;
