@@ -1,26 +1,2 @@
-# Secret & Personal Files (DO NOT UPLOAD)
-.env
-session/
-cookies.txt
 database/
-
-# Heavy Folders
-node_modules/
-
-# Temp & Junk Files
-temp/
-temp_audio.raw
-*.mp4
-*.mp3
-*.jpg
-*.raw
-
-# Windows Executables (Not needed on server)
-ffmpeg.exe
-yt-dlp.exe
-jadibot
-group_settings.json
-activity_db.json
-banned.json
-chatbot_db.json
-subbot_settings.json
+kira/
