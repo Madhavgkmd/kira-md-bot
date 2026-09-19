@@ -47,57 +47,7 @@ async function uploadImage(buffer) {
 }
 
 module.exports = [
-    // ─── 1. APK SEARCH & DOWNLOAD ───
-    {
-        name: 'apk',
-        category: 'utility',
-        description: 'Search and download APKs',
-        usage: '.apk <app name>',
-        async execute(sock, msg, args) {
-            const jid = msg.key.remoteJid;
-            const query = args.join(' ').trim();
-
-            if (!query) {
-                return await sock.sendMessage(jid, { text: '⚠️ *Please provide an app name!*\n_Example: .apk free fire_' }, { quoted: msg });
-            }
-
-            try {
-                await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
-
-                const res = await axios.get(`https://eliteprotech-apis.zone.id/apk?q=${encodeURIComponent(query)}`, { timeout: 20000 });
-                const data = res.data;
-                const results = data?.result || data?.data || data;
-
-                if (!results || (Array.isArray(results) && results.length === 0)) {
-                    throw new Error('No APK found.');
-                }
-
-                const app = Array.isArray(results) ? results[0] : results;
-                const name = app.name || query;
-                const size = app.size || 'N/A';
-                const link = app.dl_url || app.link || app.download || '';
-                const icon = app.icon || '';
-
-                if (!link) throw new Error('Download link not found.');
-
-                const caption = `📦 *APK DOWNLOADER*\n\n📱 *Name:* ${name}\n💾 *Size:* ${size}\n🔗 *Download Link:* ${link}`;
-
-                if (icon) {
-                    await sock.sendMessage(jid, { image: { url: icon }, caption: caption }, { quoted: msg });
-                } else {
-                    await sock.sendMessage(jid, { text: caption }, { quoted: msg });
-                }
-
-                await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
-            } catch (err) {
-                console.error('APK ERROR:', err.message);
-                await sock.sendMessage(jid, { react: { text: '❌', key: msg.key } });
-                await sock.sendMessage(jid, { text: '❌ Something went wrong or APK not found.' }, { quoted: msg });
-            }
-        }
-    },
-
-    // ─── 2. FONT STYLES ───
+    // ─── 1. FONT STYLES ───
     {
         name: 'font',
         category: 'utility',
@@ -114,19 +64,19 @@ module.exports = [
             try {
                 await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
 
-                const res = await axios.get(`https://eliteprotech-apis.zone.id/font?text=${encodeURIComponent(query)}`, { timeout: 15000 });
-                const fontResult = res.data?.result || res.data;
+                const res = await axios.get(`https://eliteprotech-apis.zone.id/fun/font?text=${encodeURIComponent(query)}`, { timeout: 15000 });
+                const fontResults = res.data?.results;
 
-                if (!fontResult) throw new Error('Failed to generate fonts.');
+                if (!fontResults || !Array.isArray(fontResults)) {
+                    throw new Error('Failed to generate fonts.');
+                }
 
                 let formatText = `🔤 *FANCY FONTS*\n\n`;
-                if (typeof fontResult === 'object') {
-                    for (const [key, value] of Object.entries(fontResult)) {
-                        formatText += `*${key}:* ${value}\n`;
-                    }
-                } else {
-                    formatText += fontResult;
-                }
+                
+                // ഫോണ്ടുകൾ എല്ലാം ഒന്നിന് താഴെ ഒന്നായി ലിസ്റ്റ് ചെയ്യുന്നു
+                fontResults.forEach(font => {
+                    formatText += `*${font.name}:*\n${font.text}\n\n`;
+                });
 
                 await sock.sendMessage(jid, { text: formatText.trim() }, { quoted: msg });
                 await sock.sendMessage(jid, { react: { text: '✅', key: msg.key } });
@@ -138,7 +88,7 @@ module.exports = [
         }
     },
 
-    // ─── 3. OCR (IMAGE TO TEXT) ───
+    // ─── 2. OCR (IMAGE TO TEXT) ───
     {
         name: 'ocr',
         category: 'utility',
@@ -155,13 +105,16 @@ module.exports = [
             try {
                 await sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } });
 
+                // ഇമേജ് ഡൗൺലോഡ് ചെയ്യുന്നു
                 const mediaBuffer = await downloadMediaMessage({ message: quoted }, 'buffer', {}, { logger: console });
                 if (!mediaBuffer) throw new Error('Media download failed');
 
+                // ഇമേജ് സെർവറിലേക്ക് അപ്‌ലോഡ് ചെയ്ത് ലിങ്ക് എടുക്കുന്നു
                 const imageUrl = await uploadImage(mediaBuffer);
 
-                const ocrRes = await axios.get(`https://eliteprotech-apis.zone.id/ocr?image=${encodeURIComponent(imageUrl)}`, { timeout: 25000 });
-                const extractedText = ocrRes.data?.result || ocrRes.data?.text || ocrRes.data;
+                // ആ ലിങ്ക് വെച്ച് OCR API വിളിക്കുന്നു
+                const ocrRes = await axios.get(`https://eliteprotech-apis.zone.id/tools/ocr?url=${encodeURIComponent(imageUrl)}`, { timeout: 25000 });
+                const extractedText = ocrRes.data?.text;
 
                 if (!extractedText) throw new Error('No text found in image.');
 
