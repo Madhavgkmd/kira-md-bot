@@ -1,4 +1,4 @@
-// plugins/fb.js – KIRA X MD (Fixed Facebook Downloader with Fallbacks)
+// plugins/fb.js – KIRA X MD (Fixed Facebook Downloader with HD Priority)
 
 const axios = require("axios");
 
@@ -16,7 +16,7 @@ module.exports = {
     name: "fb",
     alias: ["facebook", "fbdl"],
     category: "downloader",
-    description: "Download Facebook videos with Fallback APIs",
+    description: "Download Facebook videos in HD",
     usage: `${process.env.PREFIX || "."}fb <url>`,
 
     async execute(sock, msg, args) {
@@ -47,8 +47,9 @@ module.exports = {
         try {
             await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-            // 1. MULTIPLE API FALLBACKS
+            // 1. JERRYCODER API FIRST, THEN FALLBACKS
             const apis = [
+                `https://jerrycoder.oggyapi.workers.dev/down/fb?url=${encodeURIComponent(url)}`,
                 `https://kiraxmd-api.vercel.app/api/fb?url=${encodeURIComponent(url)}`,
                 `https://api-aswin-sparky.koyeb.app/api/downloader/fb?url=${encodeURIComponent(url)}`,
                 `https://api.siputzx.my.id/api/d/facebook?url=${encodeURIComponent(url)}`,
@@ -71,25 +72,45 @@ module.exports = {
 
             if (!data) throw new Error("All FB APIs failed");
 
-            // 2. EXTRACT VIDEO URL
+            // 2. EXTRACT VIDEO URL (PRIORITIZING HD)
             let videoUrl = null;
-            const potentialVideos = [
-                data?.result?.hd, data?.result?.video, data?.result?.sd, data?.result?.url,
-                data?.data?.hd, data?.data?.video, data?.data?.sd, data?.data?.url,
-                data?.hd, data?.video, data?.url
-            ];
 
-            for (const v of potentialVideos) {
-                if (typeof v === 'string' && v.startsWith('http')) {
-                    videoUrl = v;
-                    break;
+            // Checking new API format (data.results array)
+            if (data?.results && Array.isArray(data.results)) {
+                // Priority 1: HD Quality
+                const hdVideo = data.results.find(v => v.quality && (v.quality.includes('HD') || v.quality.includes('720p')) && v.url && v.url.startsWith('http'));
+                
+                if (hdVideo) {
+                    videoUrl = hdVideo.url;
+                } else {
+                    // Priority 2: SD Quality (Avoiding audio/kbps formats)
+                    const sdVideo = data.results.find(v => v.quality && !v.quality.includes('kbps') && v.url && v.url.startsWith('http'));
+                    if (sdVideo) {
+                        videoUrl = sdVideo.url;
+                    }
+                }
+            }
+
+            // Fallback for other APIs if the first one failed
+            if (!videoUrl) {
+                const potentialVideos = [
+                    data?.result?.hd, data?.result?.video, data?.result?.sd, data?.result?.url,
+                    data?.data?.hd, data?.data?.video, data?.data?.sd, data?.data?.url,
+                    data?.hd, data?.video, data?.url
+                ];
+
+                for (const v of potentialVideos) {
+                    if (typeof v === 'string' && v.startsWith('http')) {
+                        videoUrl = v;
+                        break;
+                    }
                 }
             }
 
             if (!videoUrl) throw new Error("No valid video string found");
 
             // 3. EXTRACT TITLE
-            const rawTitle = data?.result?.title || data?.result?.desc || data?.data?.title || data?.data?.desc || data?.title || "";
+            const rawTitle = data?.title || data?.result?.title || data?.result?.desc || data?.data?.title || data?.data?.desc || "";
             const title = decodeHTMLEntities(rawTitle);
 
             // 4. SEND VIDEO

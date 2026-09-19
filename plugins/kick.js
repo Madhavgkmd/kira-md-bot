@@ -8,10 +8,10 @@ module.exports = [
             const jid = msg.key.remoteJid;
             if (!jid.endsWith('@g.us')) return await sock.sendMessage(jid, { text: "❌ *This command can only be used in groups!*" }, { quoted: msg });
 
-            // 🚨 ID Normalization & Admin Check
-            const senderRaw = msg.key.participant || msg.key.remoteJid;
-            const sender = senderRaw.split(':')[0] + '@s.whatsapp.net';
-            const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+            // 🚨 FIX: Correct ID Normalization
+            const senderRaw = msg.key.participant || msg.key.remoteJid || "";
+            const sender = senderRaw.split('@')[0].split(':')[0] + '@s.whatsapp.net';
+            const botNumber = (sock.user?.id || "").split('@')[0].split(':')[0] + '@s.whatsapp.net';
 
             const groupMetadata = await sock.groupMetadata(jid);
             const isSenderAdmin = groupMetadata.participants.some(p => p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin'));
@@ -51,10 +51,10 @@ module.exports = [
             const jid = msg.key.remoteJid;
             if (!jid.endsWith('@g.us')) return await sock.sendMessage(jid, { text: "❌ *This command can only be used in groups!*" }, { quoted: msg });
 
-            // 🚨 ID Normalization & Admin Check
-            const senderRaw = msg.key.participant || msg.key.remoteJid;
-            const sender = senderRaw.split(':')[0] + '@s.whatsapp.net';
-            const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+            // 🚨 FIX: Correct ID Normalization
+            const senderRaw = msg.key.participant || msg.key.remoteJid || "";
+            const sender = senderRaw.split('@')[0].split(':')[0] + '@s.whatsapp.net';
+            const botNumber = (sock.user?.id || "").split('@')[0].split(':')[0] + '@s.whatsapp.net';
 
             const groupMetadata = await sock.groupMetadata(jid);
             const isSenderAdmin = groupMetadata.participants.some(p => p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin'));
@@ -68,7 +68,7 @@ module.exports = [
                 return await sock.sendMessage(jid, { text: "❌ *Make sure the bot is an admin first!*" }, { quoted: msg });
             }
 
-            // മറ്റ് അഡ്മിൻമാരെയും ബോട്ടിനെയും ഒഴിവാക്കി സാധാരണ മെമ്പേഴ്സിനെ മാത്രം സെലക്ട് ചെയ്യുന്നു
+            // Mattu adminmareyum botineyum ozhivakki sadharana membersine mathram select cheyyunnu
             const targetMembers = groupMetadata.participants
                 .filter(p => p.id !== botNumber && p.id !== sender && p.admin !== 'admin' && p.admin !== 'superadmin')
                 .map(p => p.id);
@@ -81,7 +81,7 @@ module.exports = [
                 text: `⚠️ *KICKALL INITIATED!* ⚠️\n\nRemoving ${targetMembers.length} members...\n\n_To stop this process immediately, use .restart or .reboot_` 
             }, { quoted: msg });
 
-            // വാട്സാപ്പ് ബാൻ വരാതിരിക്കാൻ ഓരോ സെക്കൻഡ് ഗ്യാപ്പിൽ റിമൂവ് ചെയ്യുന്നു
+            // Whatsapp ban varathirikkan oro second gapil remove cheyyunnu
             for (const target of targetMembers) {
                 try {
                     await sock.groupParticipantsUpdate(jid, [target], "remove");
