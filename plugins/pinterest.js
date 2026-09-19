@@ -28,13 +28,13 @@ module.exports = {
             // DOWNLOAD URL LOGIC
             // ─────────────────────────────────────
             const url = isUrlMatch[0];
-            let filePath = '';
             let success = false;
 
             try {
+                // JerryCoder API ഒന്നാമതായി സെറ്റ് ചെയ്തു
                 const apis = [
-                    `https://xeon-apis.onrender.com/pin?url=${encodeURIComponent(url)}`,
                     `https://jerrycoder.oggyapi.workers.dev/down/pinterest?url=${encodeURIComponent(url)}`,
+                    `https://xeon-apis.onrender.com/pin?url=${encodeURIComponent(url)}`,
                     `https://api.siputzx.my.id/api/d/pinterest?url=${encodeURIComponent(url)}`,
                     `https://api.ryzendesu.vip/api/downloader/pinterest?url=${encodeURIComponent(url)}`,
                     `https://api-aswin-sparky.koyeb.app/api/downloader/pinterest?url=${encodeURIComponent(url)}`
@@ -48,39 +48,31 @@ module.exports = {
                         const res = await axios.get(apis[i], { timeout: 15000 });
                         const data = res.data;
 
-                        if (data.videos && data.videos.length > 0) {
+                        // Extract URL
+                        if (data.url && typeof data.url === 'string') {
+                            mediaUrl = data.url;
+                        } else if (data.videos && data.videos.length > 0) {
                             mediaUrl = data.videos[0];
-                            isVideo = true;
                         } else if (data.images && data.images.length > 0) {
                             mediaUrl = data.images[0];
-                            isVideo = false;
-                        } 
-                        else if (typeof data.result === 'string' && data.result.startsWith('http')) {
+                        } else if (typeof data.result === 'string' && data.result.startsWith('http')) {
                             mediaUrl = data.result;
                         } else if (data.data && data.data.url) {
                             mediaUrl = data.data.url;
-                        } else if (data.url) {
-                            mediaUrl = data.url;
                         } else if (data.result && data.result.url) {
                             mediaUrl = data.result.url;
                         } else if (data.media) {
                             mediaUrl = data.media;
                         }
 
-                        if (!mediaUrl) continue;
-                        if (mediaUrl.includes('pincdn.app') && i < apis.length - 1) continue; 
+                        if (!mediaUrl || !mediaUrl.startsWith('http')) continue;
 
-                        if (!isVideo) {
-                            isVideo = mediaUrl.includes('.mp4') || mediaUrl.includes('video') || (data.result && data.result.type === 'video');
-                        }
+                        // Initial fallback guess for video (checking thumbnail for /videos/ path)
+                        isVideo = mediaUrl.includes('.mp4') || mediaUrl.includes('video') || (data.thumbnail && data.thumbnail.includes('/videos/'));
 
                         const tempDir = path.join(__dirname, '../temp');
                         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
-                        const fileName = `pin_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
-                        filePath = path.join(tempDir, fileName);
-
-                        const writer = fs.createWriteStream(filePath);
                         const mediaRes = await axios({
                             url: mediaUrl,
                             method: 'GET',
@@ -90,10 +82,22 @@ module.exports = {
                             headers: { 
                                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
                                 'Referer': 'https://www.pinterest.com/',
-                                'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5'
+                                'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,image/*;q=0.6,*/*;q=0.5'
                             }
                         });
 
+                        // Accurate content-type checking to determine if it is a video
+                        const contentType = mediaRes.headers['content-type'] || '';
+                        if (contentType.includes('video')) {
+                            isVideo = true;
+                        } else if (contentType.includes('image')) {
+                            isVideo = false;
+                        }
+
+                        const ext = isVideo ? '.mp4' : '.jpg';
+                        const finalFilePath = path.join(tempDir, `pin_${Date.now()}${ext}`);
+                        const writer = fs.createWriteStream(finalFilePath);
+                        
                         mediaRes.data.pipe(writer);
 
                         await new Promise((resolve, reject) => {
@@ -101,35 +105,31 @@ module.exports = {
                             writer.on('error', reject);
                         });
 
-                        const stats = fs.statSync(filePath);
+                        const stats = fs.statSync(finalFilePath);
                         
                         if (stats.size < 5000) {
-                            fs.unlinkSync(filePath);
+                            fs.unlinkSync(finalFilePath);
                             throw new Error("File is corrupted or too small.");
                         }
 
                         if (isVideo) {
                             await sock.sendMessage(jid, { 
-                                video: { url: filePath }, 
+                                video: { url: finalFilePath }, 
                                 mimetype: 'video/mp4'
-                                // Caption removed
                             }, { quoted: msg });
                         } else {
                             await sock.sendMessage(jid, { 
-                                image: { url: filePath }, 
+                                image: { url: finalFilePath }, 
                                 mimetype: 'image/jpeg'
-                                // Caption removed
                             }, { quoted: msg });
                         }
 
                         success = true;
-                        try { fs.unlinkSync(filePath); } catch (e) {} 
+                        try { fs.unlinkSync(finalFilePath); } catch (e) {} 
                         break; 
 
                     } catch (e) {
-                        if (filePath && fs.existsSync(filePath)) {
-                            try { fs.unlinkSync(filePath); } catch (err) {}
-                        }
+                        continue; // Try next API if this one fails
                     }
                 }
 
@@ -173,7 +173,6 @@ module.exports = {
                             await sock.sendMessage(jid, { 
                                 image: Buffer.from(imgRes.data), 
                                 mimetype: 'image/jpeg'
-                                // Caption removed
                             });
                             sentCount++;
                         } catch (e) {
