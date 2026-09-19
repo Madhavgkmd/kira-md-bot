@@ -1,4 +1,4 @@
-// plugins/play.js – KIRA X MD (Ultra Fast Audio Downloader with ID3 Tags)
+// plugins/play.js – KIRA X MD (Ultra Fast Audio Downloader with ID3 Tags & API Fallback)
 const ytSearch = require('yt-search');
 const axios = require('axios');
 const fs = require('fs');
@@ -95,34 +95,35 @@ module.exports = {
                 });
             }
 
-            // API LIST (KIRA FIRST, THEN FAST FALLBACKS)
+            // 🔥 API LIST: Xenoytdl & Kira APIs First, followed by fallbacks
             const apis = [
-                `https://kiraxmd-api.vercel.app/api/play?query=${encodeURIComponent(url)}`,
                 `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(url)}`,
+                `https://kiraxmd-api.vercel.app/api/play?query=${encodeURIComponent(url)}`,
+                `https://eliteprotech-apis.zone.id/download/ytmp3?url=${encodeURIComponent(url)}`,
                 `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`,
                 `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`
             ];
 
             let finalBuffer = null;
 
-            // FAST API EXTRACTION & DIRECT BUFFER DOWNLOAD
+            // FALLBACK API LOOP
             for (const api of apis) {
                 try {
                     const res = await axios.get(api, {
-                        timeout: 10000,
+                        timeout: 12000,
                         headers: { "User-Agent": "Mozilla/5.0" }
                     });
                     const data = res.data;
 
                     const candidate =
                         data?.result?.mp3 ||
+                        data?.result?.url ||
                         data?.data?.dl ||
                         data?.data?.download ||
                         data?.download ||
                         data?.url ||
                         data?.result?.download_url ||
                         data?.result?.audio ||
-                        data?.result?.url ||
                         (typeof data?.result === "string" ? data.result : null);
 
                     if (candidate && typeof candidate === "string" && candidate.startsWith("http")) {
@@ -132,13 +133,13 @@ module.exports = {
                             headers: { "User-Agent": "Mozilla/5.0" }
                         });
                         
-                        if (audioResponse.status === 200) {
+                        if (audioResponse.status === 200 && audioResponse.data) {
                             finalBuffer = Buffer.from(audioResponse.data);
-                            break; 
+                            break; // Success! Exit loop.
                         }
                     }
                 } catch (err) {
-                    continue; // Skip to next API if failed
+                    continue; // If this API fails, automatically try the next one!
                 }
             }
 
@@ -168,7 +169,9 @@ module.exports = {
                             '-metadata', `album=${botName}`
                         ])
                         .on("end", () => {
-                            sendBuffer = fs.readFileSync(outputPath); // Update to tagged buffer
+                            if (fs.existsSync(outputPath)) {
+                                sendBuffer = fs.readFileSync(outputPath); // Update to tagged buffer
+                            }
                             resolve();
                         })
                         .on("error", (err) => {

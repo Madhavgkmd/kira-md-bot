@@ -1,4 +1,4 @@
-// plugins/lyrics.js – KIRA X MD (JerryCoder API only)
+// plugins/lyrics.js – KIRA X MD (v1 ➔ v2 ➔ Shazam Fallback)
 const axios = require('axios');
 
 const WATERMARK = `\n\n──────────────\n> *${global.config?.BOT_NAME || 'KIRA X MD'}*`;
@@ -27,49 +27,68 @@ module.exports = {
         try {
             let result = null;
 
-            // ─── Try JerryCoder v1 ───
+            // ─── Helper function to safely extract lyrics text ───
+            const parseLyrics = (data, sourceName) => {
+                if (!data) return null;
+
+                let target = data.result || data;
+                let text = '';
+                let title = target.track?.name || target.title || target.name || query;
+                let artist = target.track?.artist || target.artist || target.artist_name || 'Unknown';
+                let album = target.track?.album || target.album || target.album_name || null;
+                let duration = target.track?.duration || target.duration || null;
+
+                // Check various keys where lyrics might be stored
+                if (target.lyrics) {
+                    if (typeof target.lyrics === 'string') {
+                        text = target.lyrics;
+                    } else if (typeof target.lyrics === 'object') {
+                        text = target.lyrics.plain_lyrics || target.lyrics.text || target.lyrics.synced_lyrics || '';
+                    }
+                } else if (typeof target.result === 'string') {
+                    text = target.result;
+                } else if (typeof target.plain_lyrics === 'string') {
+                    text = target.plain_lyrics;
+                }
+
+                if (typeof text === 'string' && text.trim().length > 10) {
+                    return { title, artist, album, duration, lyrics: text.trim(), source: sourceName };
+                }
+                return null;
+            };
+
+            // ─── 1. Try JerryCoder v1 FIRST ───
             try {
                 const res = await axios.get(`https://jerrycoder.oggyapi.workers.dev/search/lyrics-v1?q=${encodeURIComponent(query)}`, { timeout: 15000 });
-                if (res.data && res.data.lyrics) {
-                    // Check if lyrics is a string and has content
-                    if (typeof res.data.lyrics === 'string' && res.data.lyrics.length > 10) {
-                        result = {
-                            title: res.data.track?.name || query,
-                            artist: res.data.track?.artist || 'Unknown',
-                            album: res.data.track?.album || null,
-                            duration: res.data.track?.duration || null,
-                            lyrics: res.data.lyrics,
-                            source: 'v1'
-                        };
-                    }
-                }
+                result = parseLyrics(res.data, 'v1');
             } catch (e) {
                 console.log(`JerryCoder v1 error: ${e.message}`);
             }
 
-            // ─── If v1 fails, try JerryCoder v2 ───
-            if (!result) {
+            // ─── 2. If v1 fails or lyrics is blank/invalid, try JerryCoder v2 (Malayalam support) ───
+            if (!result || !result.lyrics || result.lyrics.length < 10) {
                 try {
                     const res = await axios.get(`https://jerrycoder.oggyapi.workers.dev/search/lyrics-v2?q=${encodeURIComponent(query)}`, { timeout: 15000 });
-                    if (res.data && res.data.lyrics) {
-                        if (typeof res.data.lyrics === 'string' && res.data.lyrics.length > 10) {
-                            result = {
-                                title: res.data.track?.name || query,
-                                artist: res.data.track?.artist || 'Unknown',
-                                album: res.data.track?.album || null,
-                                duration: res.data.track?.duration || null,
-                                lyrics: res.data.lyrics,
-                                source: 'v2'
-                            };
-                        }
-                    }
+                    result = parseLyrics(res.data, 'v2');
                 } catch (e) {
                     console.log(`JerryCoder v2 error: ${e.message}`);
                 }
             }
 
+            // ─── 3. If both v1 & v2 fail, fallback to Shazam API ───
             if (!result || !result.lyrics || result.lyrics.length < 10) {
-                throw new Error('No lyrics found on JerryCoder API');
+                try {
+                    const res = await axios.get(`https://api.siputzx.my.id/api/s/shazam?query=${encodeURIComponent(query)}`, { timeout: 15000 });
+                    if (res.data && res.data.status) {
+                        result = parseLyrics(res.data, 'shazam');
+                    }
+                } catch (e) {
+                    console.log(`Shazam fallback error: ${e.message}`);
+                }
+            }
+
+            if (!result || !result.lyrics || result.lyrics.length < 10) {
+                throw new Error('No lyrics found from any available APIs');
             }
 
             // ─── Clean lyrics ───

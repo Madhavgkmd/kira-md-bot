@@ -1,4 +1,4 @@
-// plugins/sticker.js - KIRA X MD (Perfect Formatting & Album Support)
+// plugins/sticker.js - KIRA X MD (Original Size, No Crop, No Border Sticker Plugin)
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const sharp = require("sharp");
 const ffmpeg = require("fluent-ffmpeg");
@@ -61,6 +61,7 @@ async function processAndSendSticker(sock, msg, mediaMsg, packName, authorName) 
             outputPath = path.join(tempDir, `out_${Date.now()}_${Math.random()}.webp`);
             fs.writeFileSync(inputPath, buffer);
 
+            // 🔥 Original size with transparent background, NO cropping, NO zooming, NO borders
             await sharp(inputPath)
                 .resize(512, 512, { 
                     fit: "contain", 
@@ -74,11 +75,12 @@ async function processAndSendSticker(sock, msg, mediaMsg, packName, authorName) 
             fs.writeFileSync(inputPath, buffer);
 
             await new Promise((resolve, reject) => {
+                // 🔥 FFmpeg filter to fit video inside 512x512 without cutting/zooming
                 ffmpeg(inputPath)
                     .inputOptions(["-t", "10"])
                     .outputOptions([
                         "-vcodec", "libwebp",
-                        "-vf", "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0",
+                        "-vf", "scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000,fps=15",
                         "-loop", "0",
                         "-preset", "default",
                         "-an",
@@ -112,7 +114,7 @@ module.exports = {
     name: "sticker",
     alias: ["s", "stik"],
     category: "sticker",
-    description: "Convert single/album/multiple images to stickers exactly as configured",
+    description: "Convert images/videos to stickers in original size without cropping or borders",
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
@@ -155,7 +157,6 @@ module.exports = {
         let packName = config.packName || (process.env.PACK_NAME ? process.env.PACK_NAME.replace(/\\n/g, '\n') : "KIRA X MD");
         let authorName = config.authorName || process.env.AUTHOR_NAME || "";
 
-        // Extract custom text safely without splitting command aliases improperly
         const rawText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
         const match = rawText.match(/^[^\w\s]*\s*(?:sticker|stik|s)(?:\s+([\s\S]*))?$/i);
         const body = match && match[1] ? match[1] : "";
