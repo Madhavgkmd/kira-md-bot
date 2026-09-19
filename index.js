@@ -125,7 +125,28 @@ http.createServer((req, res) => { res.writeHead(200, { "Content-Type": "text/pla
 function getBotNumber(sock) { try { return (sock.user?.id?.split(":")[0]?.replace(/[^0-9]/g, "") || ""); } catch { return ""; } }
 function normalizeJid(jid) { if (!jid) return ""; const number = jid.split(":")[0].split("@")[0].replace(/[^0-9]/g, ""); return number ? `${number}@s.whatsapp.net` : jid; }
 function getSender(msg, sock) { if (msg.key?.fromMe) { return normalizeJid(sock.user?.id); } const raw = msg.key?.participant || msg.participant || msg.key?.remoteJid; return normalizeJid(raw); }
-function getMessageText(msg) { const message = msg.message || {}; return ( message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || message.videoMessage?.caption || message.documentMessage?.caption || message.buttonsResponseMessage?.selectedButtonId || message.listResponseMessage?.singleSelectReply?.selectedRowId || message.templateButtonReplyMessage?.selectedId || "" ).trim(); }
+
+// 🔥 Empty Message Fix: Added support for ephemeral (disappearing) & ViewOnce messages
+function getMessageText(msg) { 
+    let message = msg.message || {};
+    if (message.ephemeralMessage) message = message.ephemeralMessage.message;
+    if (message.viewOnceMessage) message = message.viewOnceMessage.message;
+    if (message.viewOnceMessageV2) message = message.viewOnceMessageV2.message;
+    if (message.documentWithCaptionMessage) message = message.documentWithCaptionMessage.message;
+
+    return ( 
+        message?.conversation || 
+        message?.extendedTextMessage?.text || 
+        message?.imageMessage?.caption || 
+        message?.videoMessage?.caption || 
+        message?.documentMessage?.caption || 
+        message?.buttonsResponseMessage?.selectedButtonId || 
+        message?.listResponseMessage?.singleSelectReply?.selectedRowId || 
+        message?.templateButtonReplyMessage?.selectedId || 
+        "" 
+    ).trim(); 
+}
+
 function isGroupJid(jid) { return typeof jid === "string" && jid.endsWith("@g.us"); }
 function isOldMessage(msg) { if (!msg.messageTimestamp) return false; const timestamp = Number(msg.messageTimestamp); if (!timestamp) return false; const now = Math.floor(Date.now() / 1000); return now - timestamp > 60; }
 
@@ -347,6 +368,13 @@ async function startKira() {
                     const isOwnerOrSudo = isOwner || sudo; 
                     const text = getMessageText(msg);
 
+                    // 🚫 BAN SYSTEM LOGIC (Ignore banned users/groups/DMs)
+                    if (!isOwnerOrSudo) {
+                        if (Array.isArray(config.bannedUsers) && config.bannedUsers.includes(sender)) continue;
+                        if (isGroup && Array.isArray(config.bannedGroups) && config.bannedGroups.includes(jid)) continue;
+                        if (!isGroup && Array.isArray(config.bannedUsers) && config.bannedUsers.includes(jid)) continue;
+                    }
+
                     // 🔥 AUTO TYPING & AUTO RECORDING PRESENCE
                     if (!msg.key.fromMe) {
                         if (config.autoTyping) {
@@ -358,7 +386,9 @@ async function startKira() {
                     }
 
                     const cleanText = text.replace(/[\u200B-\u200D\uFEFF\u200E\u200F\s]/g, '');
-                    const hasMedia = msg.message.imageMessage || msg.message.videoMessage || msg.message.stickerMessage || msg.message.documentMessage || msg.message.audioMessage || msg.message.contactMessage;
+                    // 🔥 Fixed: Message objects might be nested if it's ephemeral/viewonce
+                    const msgContent = msg.message.ephemeralMessage?.message || msg.message.viewOnceMessage?.message || msg.message.viewOnceMessageV2?.message || msg.message.documentWithCaptionMessage?.message || msg.message;
+                    const hasMedia = msgContent.imageMessage || msgContent.videoMessage || msgContent.stickerMessage || msgContent.documentMessage || msgContent.audioMessage || msgContent.contactMessage;
                     
                     if (!cleanText && !hasMedia) continue;
 

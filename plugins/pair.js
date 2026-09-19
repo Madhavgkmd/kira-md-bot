@@ -32,7 +32,7 @@ module.exports = [
             // Loading reaction
             await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-            // 🔥 കാണിക്കാൻ പറഞ്ഞ സ്റ്റാറ്റസ് മെസ്സേജ് (ഉദാ: Requesting pair code... [ 1/8 ])
+            // 🔥 കാണിക്കാൻ പറഞ്ഞ സ്റ്റാറ്റസ് മെസ്സേജ് 
             await sock.sendMessage(jid, { 
                 text: `🔄 *Requesting pair code... [ ${currentSubbots}/${MAX_SUBBOTS} ]*` 
             }, { quoted: msg });
@@ -56,29 +56,51 @@ module.exports = [
         description: 'Check active sub-bots on the panel',
         usage: '.pairstat',
 
-        async execute(sock, msg, args) {
+        async execute(sock, msg, args, isOwner) {
             const jid = msg.key.remoteJid;
             const subBotMap = global.subBots || {};
             const currentSubbotsCount = Object.keys(subBotMap).length;
+            const availableSlots = MAX_SUBBOTS - currentSubbotsCount;
 
-            let text = `📊 *KIRA X MD - SUBBOT STATUS* 📊\n\n`;
-            text += `🔌 *Active Sub-bots:* ${currentSubbotsCount}/${MAX_SUBBOTS}\n\n`;
+            // ==========================================
+            // 1. OWNER / SUDO REPORT (Full Information)
+            // ==========================================
+            if (isOwner) {
+                let ownerText = `📊 *KIRA X MD - SUBBOT STATUS (ADMIN)* 📊\n\n`;
+                ownerText += `🔌 *Active Sub-bots:* ${currentSubbotsCount}/${MAX_SUBBOTS}\n`;
+                ownerText += `✅ *Available Slots:* ${availableSlots}\n\n`;
 
-            if (currentSubbotsCount > 0) {
-                text += `*Connected Numbers:*\n`;
-                let count = 1;
-                // കണക്ട് ആയ എല്ലാ ബോട്ടുകളുടെയും നമ്പർ എടുത്തു ലിസ്റ്റ് ചെയ്യുന്നു
-                for (const botNum of Object.keys(subBotMap)) {
-                    // അഥവാ നമ്പർ '@s.whatsapp.net' ചേർത്ത് വന്നാൽ അത് ഒഴിവാക്കാൻ
-                    const cleanNum = botNum.split('@')[0];
-                    text += `${count}. +${cleanNum}\n`;
-                    count++;
+                if (currentSubbotsCount > 0) {
+                    ownerText += `*Connected Numbers:*\n`;
+                    let count = 1;
+                    for (const botNum of Object.keys(subBotMap)) {
+                        const cleanNum = botNum.split('@')[0];
+                        ownerText += `${count}. +${cleanNum}\n`;
+                        count++;
+                    }
+                } else {
+                    ownerText += `_No sub-bots are currently connected._\n`;
                 }
-            } else {
-                text += `_No sub-bots are currently connected._\n`;
-            }
 
-            await sock.sendMessage(jid, { text: text }, { quoted: msg });
+                return await sock.sendMessage(jid, { text: ownerText }, { quoted: msg });
+            } 
+            
+            // ==========================================
+            // 2. NORMAL USER REPORT (No numbers shown)
+            // ==========================================
+            else {
+                let userText = `📊 *KIRA X MD - SUBBOTS* 📊\n\n`;
+                userText += `🔌 *Active Sub-bots:* ${currentSubbotsCount}/${MAX_SUBBOTS}\n`;
+                userText += `✅ *Available Slots:* ${availableSlots}\n\n`;
+
+                if (availableSlots > 0) {
+                    userText += `_You can connect your bot using .pair <number>_`;
+                } else {
+                    userText += `_Server is currently full! Try again later._`;
+                }
+
+                return await sock.sendMessage(jid, { text: userText }, { quoted: msg });
+            }
         }
     }
 ];

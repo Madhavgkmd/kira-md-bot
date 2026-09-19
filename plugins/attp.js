@@ -66,11 +66,9 @@ async function getAttpBuffer(text) {
     }
     
     // 2. THE ULTIMATE FALLBACK (Never fails)
-    // If all animated APIs are down, we instantly generate a high-quality colorful static WebP sticker!
     console.log("[ATTP] Animated APIs down. Using ultra-stable static fallback...");
     try {
         const avatarUrl = `https://ui-avatars.com/api/?name=${encodedText}&background=random&color=fff&size=512&font-size=0.4&length=4`;
-        // We use a global image proxy to convert the PNG to WhatsApp WebP format instantly
         const fallbackUrl = `https://wsrv.nl/?url=${encodeURIComponent(avatarUrl)}&output=webp`;
         
         const response = await fetch(fallbackUrl);
@@ -102,8 +100,9 @@ module.exports = {
 
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-        // 🔥 Dynamic Watermark Setup
-        const botName = global.config?.BOT_NAME || global.getBotName(botNumber) || 'KIRA X MD';
+        // 🔥 FIX: Defined botNumber before using it for the watermark!
+        const botNumber = sock.user?.id?.split(':')[0]?.replace(/[^0-9]/g, "") || "";
+        const botName = global.config?.BOT_NAME || (typeof global.getBotName === 'function' ? global.getBotName(botNumber) : 'KIRA X MD');
         const senderName = msg.pushName || "User";
 
         let tempPath;
