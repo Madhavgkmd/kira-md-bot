@@ -6,6 +6,7 @@ const path = require("path");
 
 module.exports = {
     name: "gif",
+    category: "sticker",
     alias: ["makegif"],
 
     async execute(sock, msg) {

@@ -1,10 +1,9 @@
-// plugins/fb.js – KIRA X MD Facebook Video Downloader
+// plugins/fb.js – KIRA X MD (Fixed Facebook Downloader with Fallbacks)
 
 const axios = require("axios");
 
-// 🔥 Helper function to decode HTML entities (fixes the alien text issue)
 function decodeHTMLEntities(text) {
-    if (!text) return "Facebook Video";
+    if (!text) return "";
     return text
         .replace(/&#([xX]?)([0-9a-fA-F]+);?/g, (_, isHex, num) => String.fromCharCode(parseInt(num, isHex ? 16 : 10)))
         .replace(/&quot;/g, '"')
@@ -15,192 +14,100 @@ function decodeHTMLEntities(text) {
 
 module.exports = {
     name: "fb",
-    alias: ["facebook"],
+    alias: ["facebook", "fbdl"],
     category: "downloader",
-    description: "Download Facebook videos using KIRA X MD API",
+    description: "Download Facebook videos with Fallback APIs",
     usage: `${process.env.PREFIX || "."}fb <url>`,
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
         const prefix = process.env.PREFIX || ".";
+        let url = Array.isArray(args) ? args.join(" ").trim() : "";
 
-        // =========================================================
-        // 1. GET URL FROM COMMAND
-        // =========================================================
+        const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+        const quoted = contextInfo?.quotedMessage;
 
-        let url = Array.isArray(args)
-            ? args.join(" ").trim()
-            : "";
-
-        // =========================================================
-        // 2. GET URL FROM QUOTED MESSAGE
-        // =========================================================
-
-        if (!url) {
-            const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
-            const quoted = contextInfo?.quotedMessage;
-
-            if (quoted) {
-                const quotedText =
-                    quoted.conversation ||
-                    quoted.extendedTextMessage?.text ||
-                    quoted.imageMessage?.caption ||
-                    quoted.videoMessage?.caption ||
-                    "";
-
-                const match = quotedText.match(
-                    /https?:\/\/(?:www\.|m\.|mbasic\.)?(?:facebook\.com|fb\.watch)\/[^\s<>"']+/i
-                );
-
-                if (match) {
-                    url = match[0].replace(/[)\]}>.,!?]+$/g, "");
-                }
-            }
+        if (!url && quoted) {
+            const quotedText =
+                quoted.conversation ||
+                quoted.extendedTextMessage?.text ||
+                quoted.imageMessage?.caption ||
+                quoted.videoMessage?.caption ||
+                "";
+            const match = quotedText.match(/https?:\/\/(?:www\.|m\.|mbasic\.)?(?:facebook\.com|fb\.watch|fb\.gg)\/[^\s<>"']+/i);
+            if (match) url = match[0].replace(/[)\]}>.,!?]+$/g, "");
         }
 
-        // =========================================================
-        // 3. URL NOT FOUND
-        // =========================================================
-
         if (!url) {
-            return await sock.sendMessage(
-                jid,
-                {
-                    text:
-                        `❌ *Missing Facebook URL*\n\n` +
-                        `➤ ${prefix}fb <facebook link>\n\n` +
-                        `💡 You can also reply to a Facebook link with *${prefix}fb*`
-                },
-                { quoted: msg }
-            );
+            return await sock.sendMessage(jid, {
+                text: `❌ Example:\n${prefix}fb https://fb.watch/xxxxx\n\nor reply to a Facebook link with ${prefix}fb`
+            }, { quoted: msg });
         }
 
         try {
-            // =====================================================
-            // 4. START
-            // =====================================================
+            await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-            await sock.sendMessage(jid, {
-                react: {
-                    text: "⏳",
-                    key: msg.key
+            // 1. MULTIPLE API FALLBACKS
+            const apis = [
+                `https://kiraxmd-api.vercel.app/api/fb?url=${encodeURIComponent(url)}`,
+                `https://api-aswin-sparky.koyeb.app/api/downloader/fb?url=${encodeURIComponent(url)}`,
+                `https://api.siputzx.my.id/api/d/facebook?url=${encodeURIComponent(url)}`,
+                `https://api.ryzendesu.vip/api/downloader/fbdl?url=${encodeURIComponent(url)}`
+            ];
+
+            let data = null;
+
+            for (const api of apis) {
+                try {
+                    const res = await axios.get(api, { timeout: 25000 });
+                    if (res.data) {
+                        data = res.data;
+                        break;
+                    }
+                } catch (e) {
+                    continue; // Adutha API nokkum
                 }
-            });
-
-            console.log("\n========== FB COMMAND ==========");
-            console.log("Facebook URL:", url);
-
-            // =====================================================
-            // 5. CALL YOUR VERCEL API
-            // =====================================================
-
-            const apiUrl = `https://kiraxmd-api.vercel.app/api/fb?url=${encodeURIComponent(url)}`;
-
-            console.log("Calling API:", apiUrl);
-
-            const response = await axios.get(apiUrl, {
-                timeout: 30000,
-                headers: {
-                    "User-Agent":
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36"
-                }
-            });
-
-            const data = response.data;
-
-            console.log("FB API status:", data?.status);
-
-            // =====================================================
-            // 6. CHECK API RESPONSE
-            // =====================================================
-
-            if (
-                !data ||
-                !data.status ||
-                !data.result?.video
-            ) {
-                throw new Error(
-                    data?.error ||
-                    "Facebook API did not return a video URL."
-                );
             }
 
-            // =====================================================
-            // 7. GET BEST QUALITY & DECODE CAPTION
-            // =====================================================
+            if (!data) throw new Error("All FB APIs failed");
 
-            const videoUrl =
-                data.result.hd ||
-                data.result.video ||
-                data.result.sd;
+            // 2. EXTRACT VIDEO URL
+            let videoUrl = null;
+            const potentialVideos = [
+                data?.result?.hd, data?.result?.video, data?.result?.sd, data?.result?.url,
+                data?.data?.hd, data?.data?.video, data?.data?.sd, data?.data?.url,
+                data?.hd, data?.video, data?.url
+            ];
 
-            if (!videoUrl) {
-                throw new Error(
-                    "No downloadable Facebook video URL found."
-                );
+            for (const v of potentialVideos) {
+                if (typeof v === 'string' && v.startsWith('http')) {
+                    videoUrl = v;
+                    break;
+                }
             }
 
-            // 🔥 Decoding the title here!
-            const title = decodeHTMLEntities(data.result.title);
+            if (!videoUrl) throw new Error("No valid video string found");
 
-            console.log("✅ Video URL found");
+            // 3. EXTRACT TITLE
+            const rawTitle = data?.result?.title || data?.result?.desc || data?.data?.title || data?.data?.desc || data?.title || "";
+            const title = decodeHTMLEntities(rawTitle);
 
-            // =====================================================
-            // 8. DOWNLOADING / SENDING
-            // =====================================================
-
+            // 4. SEND VIDEO
             await sock.sendMessage(jid, {
-                react: {
-                    text: "📥",
-                    key: msg.key
-                }
-            });
+                video: { url: videoUrl },
+                caption: title 
+            }, { quoted: msg });
 
-            await sock.sendMessage(
-                jid,
-                {
-                    video: {
-                        url: videoUrl
-                    },
-                    mimetype: "video/mp4",
-                    caption: title // Clean, readable text
-                },
-                { quoted: msg }
-            );
-
-            // =====================================================
-            // 9. SUCCESS
-            // =====================================================
-
-            await sock.sendMessage(jid, {
-                react: {
-                    text: "✅",
-                    key: msg.key
-                }
-            });
-
-            console.log("✅ Facebook video sent successfully");
+            await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
         } catch (err) {
-            console.error("\n========== FB ERROR ==========");
-            console.error(err);
+            console.log("FB ERROR:", err.message);
 
             await sock.sendMessage(jid, {
-                react: {
-                    text: "❌",
-                    key: msg.key
-                }
-            });
+                text: "❌ Something error please try again later ⚠️"
+            }, { quoted: msg });
 
-            await sock.sendMessage(
-                jid,
-                {
-                    text:
-                        `❌ *Facebook Download Failed!*\n\n` +
-                        `⚠️ ${err.message || "Unknown error"}`
-                },
-                { quoted: msg }
-            );
+            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
         }
     }
 };
