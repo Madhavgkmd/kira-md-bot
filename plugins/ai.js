@@ -20,7 +20,9 @@ async function getAIResponse(sock, msg, systemPrompt, userQuery, aiType) {
         const fullPrompt = `${systemPrompt}\n\nUser: ${userQuery}`;
 
         // Using your own custom API
-        const apiUrl = `https://kiraxmd-api.vercel.app/api/ai?apikey=kiraxmd_admin_2026&q=${encodeURIComponent(fullPrompt)}`;
+        const apiKey = process.env.KIRAXMD_API_KEY;
+        if (!apiKey) throw new Error("KIRAXMD_API_KEY is not configured");
+        const apiUrl = `https://kiraxmd-api.vercel.app/api/ai?apikey=${encodeURIComponent(apiKey)}&q=${encodeURIComponent(fullPrompt)}`;
         
         const res = await axios.get(apiUrl, { timeout: 30000 });
         let reply = res.data?.result || res.data?.reply || res.data?.response || "";
