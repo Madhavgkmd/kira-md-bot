@@ -10,6 +10,13 @@ if (fs.existsSync(ffmpegPath)) {
     ffmpeg.setFfmpegPath(ffmpegPath);
 }
 
+// 🔥 FFmpeg-ന് സപ്പോർട്ട് ചെയ്യാത്ത ഫാൻസി ഫോണ്ടുകളും സ്പെഷ്യൽ ക്യാരക്ടറുകളും ഒഴിവാക്കാൻ
+function sanitizeMetadata(text, fallback) {
+    if (!text) return fallback;
+    const cleaned = text.replace(/[^\x20-\x7E]/g, '').trim(); // Keeps only standard English characters & symbols
+    return cleaned || fallback;
+}
+
 module.exports = {
     name: "tomp3",
     alias: ["mp3", "video2mp3", "toaudio"],
@@ -65,15 +72,19 @@ module.exports = {
             fs.writeFileSync(inputPath, buffer);
             console.log("🔄 [toMP3] Starting FFmpeg conversion...");
 
+            // 🔥 Sanitize Names for FFmpeg Metadata to prevent crash
+            const safeBotName = sanitizeMetadata(botName, "KIRA X MD");
+            const safeOwnerName = sanitizeMetadata(ownerName, "Madhav");
+
             // FFmpeg വഴി dynamic ടാഗുകൾ ചേർക്കുന്നു
             await new Promise((resolve, reject) => {
                 ffmpeg(inputPath)
                     .toFormat("mp3")
                     .audioBitrate(128)
                     .outputOptions([
-                        '-metadata', `title=${botName}`, 
-                        '-metadata', `artist=${ownerName}`,    
-                        '-metadata', `album=${botName}`
+                        '-metadata', `title=${safeBotName}`, 
+                        '-metadata', `artist=${safeOwnerName}`,    
+                        '-metadata', `album=${safeBotName}`
                     ])
                     .on("end", () => {
                         console.log("✅ [toMP3] Conversion finished!");
@@ -93,7 +104,7 @@ module.exports = {
                 audio: audioBuffer,
                 mimetype: "audio/mp4",
                 ptt: false, 
-                fileName: `${botName.replace(/\s+/g, '_')}_${Date.now()}.mp3`,
+                fileName: `${safeBotName.replace(/\s+/g, '_')}_${Date.now()}.mp3`,
             }, { quoted: msg }); 
 
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
@@ -114,4 +125,3 @@ module.exports = {
         }
     }
 };
-
